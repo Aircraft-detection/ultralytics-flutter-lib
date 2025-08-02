@@ -100,44 +100,6 @@ class YOLO(
     }
 
     /**
-     * Predict using a local image Uri
-     * No rotation is applied (single image processing)
-     */
-    fun predict(imageUri: Uri): YOLOResult? {
-        try {
-            val bitmap = MediaStore.Images.Media.getBitmap(context.contentResolver, imageUri)
-            val result =
-                predictor.predict(bitmap, bitmap.width, bitmap.height, rotateForCamera = false, isLandscape = false)
-            return result.copy(
-                originalImage = bitmap,
-                annotatedImage = drawAnnotations(bitmap, result, rotateForCamera = false)
-            )
-        } catch (e: IOException) {
-            Log.e(TAG, "Failed to load image from Uri: ${e.message}")
-            return null
-        }
-    }
-
-    /**
-     * Predict using a remote image URL (suspending function for network operations)
-     * No rotation is applied (single image processing)
-     */
-    suspend fun predict(imageUrl: String): YOLOResult? = withContext(Dispatchers.IO) {
-        try {
-            val bitmap = BitmapFactory.decodeStream(URL(imageUrl).openStream())
-            val result =
-                predictor.predict(bitmap, bitmap.width, bitmap.height, rotateForCamera = false, isLandscape = false)
-            return@withContext result.copy(
-                originalImage = bitmap,
-                annotatedImage = drawAnnotations(bitmap, result, rotateForCamera = false)
-            )
-        } catch (e: IOException) {
-            Log.e(TAG, "Failed to load image from URL: ${e.message}")
-            return@withContext null
-        }
-    }
-
-    /**
      * Calculate smart label position that ensures the label stays within screen bounds
      * @param boxRect The bounding box rectangle
      * @param labelWidth The width of the label
@@ -313,54 +275,5 @@ class YOLO(
         }
 
         return output
-    }
-
-    /**
-     * Set confidence threshold for detection
-     */
-    fun setConfidenceThreshold(threshold: Double) {
-        predictor.setConfidenceThreshold(threshold)
-    }
-
-    /**
-     * Set confidence threshold for detection (Float overload)
-     */
-    fun setConfidenceThreshold(threshold: Float) {
-        predictor.setConfidenceThreshold(threshold.toDouble())
-    }
-
-    /**
-     * Get current confidence threshold
-     */
-    fun getConfidenceThreshold(): Float {
-        return predictor.getConfidenceThreshold().toFloat()
-    }
-
-    /**
-     * Set IoU threshold for non-maximum suppression
-     */
-    fun setIouThreshold(threshold: Double) {
-        predictor.setIouThreshold(threshold)
-    }
-
-    /**
-     * Set IoU threshold for non-maximum suppression (Float overload)
-     */
-    fun setIouThreshold(threshold: Float) {
-        predictor.setIouThreshold(threshold.toDouble())
-    }
-
-    /**
-     * Get current IoU threshold
-     */
-    fun getIouThreshold(): Float {
-        return predictor.getIouThreshold().toFloat()
-    }
-
-    /**
-     * Set maximum number of detections
-     */
-    fun setNumItemsThreshold(max: Int) {
-        predictor.setNumItemsThreshold(max)
     }
 }

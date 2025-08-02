@@ -321,15 +321,7 @@ class ObjectDetector(
         val shape = interpreter.getOutputTensor(0).shape() // example: [1, 84, 8400]
         Log.d("TFLite", "Output shape: " + shape.contentToString())
 
-//        // Transpose output ([1][c][w] → [w][c])
-//        for (i in 0 until outHeight) {
-//            for (j in 0 until outWidth) {
-//                predictions[j][i] = rawOutput[0][i][j]
-//            }
-//        }
-//
-//        val outHeight = rawOutput[0].size      // out1
-//        val outWidth = rawOutput[0][0].size      // out2
+
         val resultBoxes = postprocess(
             rawOutput[0],
             w = outWidth,   // width is out2
@@ -396,28 +388,6 @@ class ObjectDetector(
     private var confidenceThreshold = 0.25f
     private var iouThreshold = 0.4f
     private var numItemsThreshold = 30
-
-    override fun setConfidenceThreshold(conf: Double) {
-        confidenceThreshold = conf.toFloat()
-        super.setConfidenceThreshold(conf)
-    }
-
-    override fun setIouThreshold(iou: Double) {
-        iouThreshold = iou.toFloat()
-        super.setIouThreshold(iou)
-    }
-
-    override fun getConfidenceThreshold(): Double {
-        return confidenceThreshold.toDouble()
-    }
-
-    override fun getIouThreshold(): Double {
-        return iouThreshold.toDouble()
-    }
-
-    override fun setNumItemsThreshold(n: Int) {
-        numItemsThreshold = n
-    }
 
     // Post-processing via JNI
     private external fun postprocess(

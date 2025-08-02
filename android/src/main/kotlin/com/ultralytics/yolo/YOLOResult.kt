@@ -9,9 +9,6 @@ import android.graphics.RectF
 data class YOLOResult(
     val origShape: Size,
     val boxes: List<Box> = emptyList(),
-    val masks: Masks? = null,
-    val probs: Probs? = null,
-    val keypointsList: List<Keypoints> = emptyList(),
     val annotatedImage: Bitmap? = null,
     val speed: Double,
     val fps: Double? = null,
@@ -25,25 +22,6 @@ data class Box(
     var conf: Float,
     val xywh: RectF,    // Real image coordinates
     val xywhn: RectF    // Normalized coordinates (0~1)
-)
-
-data class Masks(
-    val masks: List<List<List<Float>>>, // Individual probability maps (matrix list)
-    val combinedMask: Bitmap?           // Combined mask image
-)
-
-data class Probs(
-    var top1: String,
-    var top5: List<String>,
-    var top1Conf: Float,
-    var top5Confs: List<Float>,
-    var top1Index: Int
-)
-
-data class Keypoints(
-    val xyn: List<Pair<Float, Float>>,
-    val xy: List<Pair<Float, Float>>,
-    val conf: List<Float>
 )
 
 data class Size(val width: Int, val height: Int)
