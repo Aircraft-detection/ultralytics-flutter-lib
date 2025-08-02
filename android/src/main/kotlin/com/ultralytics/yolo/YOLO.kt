@@ -21,7 +21,6 @@ import kotlin.math.max
 class YOLO(
     private val context: Context,
     private val modelPath: String,
-    val task: YOLOTask,
     private val labels: List<String> = emptyList(),
     private val useGpu: Boolean = true,
     private val classifierOptions: Map<String, Any>? = null

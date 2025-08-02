@@ -200,7 +200,6 @@ class YOLOView @JvmOverloads constructor(
 
     private var inferenceResult: YOLOResult? = null
     private var predictor: Predictor? = null
-    private var task: YOLOTask = YOLOTask.DETECT
     private var modelName: String = "Model"
 
     // Camera config
@@ -339,7 +338,7 @@ class YOLOView @JvmOverloads constructor(
 
     // region Model / Task
 
-    fun setModel(modelPath: String, task: YOLOTask, callback: ((Boolean) -> Unit)? = null) {
+    fun setModel(modelPath: String, callback: ((Boolean) -> Unit)? = null) {
         Executors.newSingleThreadExecutor().execute {
             try {
                 val newPredictor = ObjectDetector(context, modelPath, loadLabels(modelPath), useGpu = true).apply {
@@ -350,7 +349,6 @@ class YOLOView @JvmOverloads constructor(
 
 
                 post {
-                    this.task = task
                     this.predictor = newPredictor
                     this.modelName = modelPath.substringAfterLast("/")
                     modelLoadCallback?.invoke(true)

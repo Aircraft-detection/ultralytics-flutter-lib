@@ -48,10 +48,9 @@ class YOLOInstanceManager {
         instanceId: String,
         context: Context,
         modelPath: String,
-        task: YOLOTask,
         callback: (Result<Unit>) -> Unit
     ) {
-        loadModel(instanceId, context, modelPath, task, null, callback)
+        loadModel(instanceId, context, modelPath, null, callback)
     }
     
     /**
@@ -61,7 +60,6 @@ class YOLOInstanceManager {
         instanceId: String,
         context: Context,
         modelPath: String,
-        task: YOLOTask,
         classifierOptions: Map<String, Any>?,
         callback: (Result<Unit>) -> Unit
     ) {
@@ -89,7 +87,7 @@ class YOLOInstanceManager {
             }
             
             // Get labels from model metadata or use default
-            val yolo = YOLO(context, modelPath, task, emptyList(), true, classifierOptions)
+            val yolo = YOLO(context, modelPath, emptyList(), true, classifierOptions)
             instances[instanceId] = yolo
             loadingStates[instanceId] = false
             Log.d(TAG, "Model loaded successfully for instance: $instanceId ${if (classifierOptions != null) "with classifier options" else ""}")

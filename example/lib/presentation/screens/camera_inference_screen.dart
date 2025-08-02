@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:ultralytics_yolo/yolo_result.dart';
 import 'package:ultralytics_yolo/yolo_view.dart';
 import '../../models/model_type.dart';
-import '../../models/slider_type.dart';
 import '../../services/model_manager.dart';
 
 class CameraInferenceScreen extends StatefulWidget {
@@ -84,8 +83,6 @@ class _CameraInferenceScreenState extends State<CameraInferenceScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final orientation = MediaQuery.of(context).orientation;
-
     return Scaffold(
       body: Stack(
         children: [

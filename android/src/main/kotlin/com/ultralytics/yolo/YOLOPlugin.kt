@@ -150,16 +150,12 @@ class YOLOPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler
         try {
           val args = call.arguments as? Map<*, *>
           var modelPath = args?.get("modelPath") as? String ?: "yolo11n"
-          val taskString = args?.get("task") as? String ?: "detect"
           val instanceId = args?.get("instanceId") as? String ?: "default"
           val classifierOptionsMap = args?.get("classifierOptions") as? Map<String, Any>
           
           // Resolve the model path (handling absolute paths, internal:// scheme, or asset paths)
           modelPath = resolveModelPath(modelPath)
-          
-          // Convert task string to enum
-          val task = YOLOTask.valueOf(taskString.uppercase())
-          
+
           // Use classifier options map directly (follows existing pattern)
           val classifierOptions = classifierOptionsMap
           
@@ -168,19 +164,15 @@ class YOLOPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler
             Log.d(TAG, "Parsed classifier options: $classifierOptions")
           }
           
-          // Load labels (in real implementation, you would load from metadata)
-          val labels = loadLabels(modelPath)
-          
           // Initialize YOLO with instance manager
           YOLOInstanceManager.shared.loadModel(
             instanceId = instanceId,
             context = applicationContext,
             modelPath = modelPath,
-            task = task,
             classifierOptions = classifierOptions
           ) { loadResult ->
             if (loadResult.isSuccess) {
-              Log.d(TAG, "Model loaded successfully: $modelPath for task: $task, instance: $instanceId ${if (classifierOptions != null) "with classifier options" else ""}")
+              Log.d(TAG, "Model loaded successfully: $modelPath, instance: $instanceId ${if (classifierOptions != null) "with classifier options" else ""}")
               result.success(true)
             } else {
               Log.e(TAG, "Failed to load model for instance $instanceId", loadResult.exceptionOrNull())
@@ -322,11 +314,8 @@ class YOLOPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler
             // Resolve the model path
             val resolvedPath = resolveModelPath(modelPath)
             
-            // Convert task string to enum
-            val task = YOLOTask.valueOf(taskString.uppercase())
-            
             // Call setModel on the YoloView
-            yoloView.setModel(resolvedPath, task) { success ->
+            yoloView.setModel(resolvedPath) { success ->
               if (success) {
                 result.success(null)
               } else {
