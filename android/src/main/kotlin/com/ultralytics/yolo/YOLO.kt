@@ -41,10 +41,10 @@ class YOLO(
             Interpreter.Options().apply {
                 // Use all available CPU cores for maximum parallelism
                 setNumThreads(Runtime.getRuntime().availableProcessors())
-                
+
                 // Allow FP16 precision for faster computation
                 setAllowFp16PrecisionForFp32(true)
-                
+
                 // Log configuration
                 Log.d(TAG, "Interpreter options: threads=${Runtime.getRuntime().availableProcessors()}, FP16 enabled")
             }
@@ -56,13 +56,7 @@ class YOLO(
 
     private val predictor: Predictor by lazy {
         val options = createCustomOptions()
-        when (task) {
-            YOLOTask.DETECT -> ObjectDetector(context, modelPath, labels, useGpu, options)
-            YOLOTask.SEGMENT -> Segmenter(context, modelPath, labels, useGpu, options)
-            YOLOTask.CLASSIFY -> Classifier(context, modelPath, labels, useGpu, options, classifierOptions)
-            YOLOTask.POSE -> PoseEstimator(context, modelPath, labels, useGpu, customOptions = options)
-            YOLOTask.OBB -> ObbDetector(context, modelPath, labels, useGpu, options)
-        }
+        ObjectDetector(context, modelPath, labels, useGpu, options)
     }
 
     /**
@@ -82,15 +76,10 @@ class YOLO(
      */
     fun predict(bitmap: Bitmap, rotateForCamera: Boolean = false): YOLOResult {
         val result = predictor.predict(bitmap, bitmap.width, bitmap.height, rotateForCamera, isLandscape = false)
-        
+
         // Don't create annotated image for classification tasks to save memory and processing time
-        val annotatedImage = if (task == YOLOTask.CLASSIFY) {
-            Log.d(TAG, "Skipping annotation for CLASSIFY task")
-            null
-        } else {
-            drawAnnotations(bitmap, result, rotateForCamera)
-        }
-        
+        val annotatedImage = drawAnnotations(bitmap, result, rotateForCamera)
+
         return result.copy(
             originalImage = bitmap,
             annotatedImage = annotatedImage
@@ -103,7 +92,8 @@ class YOLO(
      */
     fun predict(imageProxy: ImageProxy): YOLOResult? {
         val bitmap = ImageUtils.toBitmap(imageProxy) ?: return null
-        val result = predictor.predict(bitmap, imageProxy.width, imageProxy.height, rotateForCamera = true, isLandscape = false)
+        val result =
+            predictor.predict(bitmap, imageProxy.width, imageProxy.height, rotateForCamera = true, isLandscape = false)
         return result.copy(
             originalImage = bitmap,
             annotatedImage = drawAnnotations(bitmap, result, rotateForCamera = true)
@@ -117,7 +107,8 @@ class YOLO(
     fun predict(imageUri: Uri): YOLOResult? {
         try {
             val bitmap = MediaStore.Images.Media.getBitmap(context.contentResolver, imageUri)
-            val result = predictor.predict(bitmap, bitmap.width, bitmap.height, rotateForCamera = false, isLandscape = false)
+            val result =
+                predictor.predict(bitmap, bitmap.width, bitmap.height, rotateForCamera = false, isLandscape = false)
             return result.copy(
                 originalImage = bitmap,
                 annotatedImage = drawAnnotations(bitmap, result, rotateForCamera = false)
@@ -135,7 +126,8 @@ class YOLO(
     suspend fun predict(imageUrl: String): YOLOResult? = withContext(Dispatchers.IO) {
         try {
             val bitmap = BitmapFactory.decodeStream(URL(imageUrl).openStream())
-            val result = predictor.predict(bitmap, bitmap.width, bitmap.height, rotateForCamera = false, isLandscape = false)
+            val result =
+                predictor.predict(bitmap, bitmap.width, bitmap.height, rotateForCamera = false, isLandscape = false)
             return@withContext result.copy(
                 originalImage = bitmap,
                 annotatedImage = drawAnnotations(bitmap, result, rotateForCamera = false)
@@ -167,20 +159,20 @@ class YOLO(
         var labelTop = boxRect.top - labelHeight
         var labelRight = labelLeft + labelWidth
         var labelBottom = boxRect.top
-        
+
         // Check top boundary
         if (labelTop < 0) {
             // Place inside top of box
             labelTop = boxRect.top
             labelBottom = labelTop + labelHeight
         }
-        
+
         // Check left boundary
         if (labelLeft < 0) {
             labelLeft = 0f
             labelRight = labelWidth
         }
-        
+
         // Check right boundary
         if (labelRight > viewWidth) {
             labelRight = viewWidth
@@ -190,13 +182,13 @@ class YOLO(
                 labelLeft = maxOf(0f, boxRect.right - labelWidth)
             }
         }
-        
+
         // Check bottom boundary
         if (labelBottom > viewHeight) {
             labelBottom = viewHeight
             labelTop = labelBottom - labelHeight
         }
-        
+
         return RectF(labelLeft, labelTop, labelRight, labelBottom)
     }
 
@@ -258,7 +250,7 @@ class YOLO(
                 // Return as-is if no rotation
                 return rect
             }
-            
+
             // Get dimensions of original and rotated images
             val originalWidth = bitmap.width.toFloat()
             val originalHeight = bitmap.height.toFloat()
@@ -273,428 +265,52 @@ class YOLO(
             )
         }
 
-        when (task) {
-            YOLOTask.DETECT -> {
-                // Draw bounding boxes
-                for ((i, box) in result.boxes.withIndex()) {
-                    paint.color = ultralyticsColors[box.index % ultralyticsColors.size]
+        // Draw bounding boxes
+        for ((i, box) in result.boxes.withIndex()) {
+            paint.color = ultralyticsColors[box.index % ultralyticsColors.size]
 
-                    // Transform coordinates
-                    val transformedRect = transformRect(box.xywh)
-                    // Draw rounded rectangle with corner radius
-                    val cornerRadius = 12f
-                    canvas.drawRoundRect(box.xywh, cornerRadius, cornerRadius, paint)
+            // Transform coordinates
+            val transformedRect = transformRect(box.xywh)
+            // Draw rounded rectangle with corner radius
+            val cornerRadius = 12f
+            canvas.drawRoundRect(box.xywh, cornerRadius, cornerRadius, paint)
 
-                    // Draw label with background
-                    val labelText = "${box.cls} ${(box.conf * 100).toInt()}%"
-                    val labelPadding = 8f
-                    
-                    // Measure text
-                    val textBounds = Rect()
-                    paint.getTextBounds(labelText, 0, labelText.length, textBounds)
-                    
-                    // Calculate label size
-                    val labelWidth = textBounds.width() + labelPadding * 2
-                    val labelHeight = textBounds.height() + labelPadding * 2
-                    
-                    // Calculate smart label position
-                    val labelRect = calculateSmartLabelRect(
-                        transformedRect,
-                        labelWidth,
-                        labelHeight,
-                        output.width.toFloat(),
-                        output.height.toFloat()
-                    )
-                    
-                    // Draw label background
-                    paint.style = Paint.Style.FILL
-                    canvas.drawRoundRect(labelRect, cornerRadius, cornerRadius, paint)
-                    
-                    // Draw label text in white
-                    paint.color = Color.WHITE
-                    canvas.drawText(
-                        labelText,
-                        labelRect.left + labelPadding,
-                        labelRect.bottom - labelPadding,
-                        paint
-                    )
-                    
-                    // Reset paint for next box
-                    paint.style = Paint.Style.STROKE
-                }
-            }
-            YOLOTask.SEGMENT -> {
-                // Draw bounding boxes
-                for ((i, box) in result.boxes.withIndex()) {
-                    paint.color = ultralyticsColors[box.index % ultralyticsColors.size]
+            // Draw label with background
+            val labelText = "${box.cls} ${(box.conf * 100).toInt()}%"
+            val labelPadding = 8f
 
-                    // Transform coordinates
-                    val transformedRect = transformRect(box.xywh)
-                    // Draw rounded rectangle with corner radius
-                    val cornerRadius = 12f
-                    canvas.drawRoundRect(transformedRect, cornerRadius, cornerRadius, paint)
+            // Measure text
+            val textBounds = Rect()
+            paint.getTextBounds(labelText, 0, labelText.length, textBounds)
 
-                    // Draw label with background
-                    val labelText = "${box.cls} ${(box.conf * 100).toInt()}%"
-                    val labelPadding = 8f
-                    
-                    // Measure text
-                    val textBounds = Rect()
-                    paint.getTextBounds(labelText, 0, labelText.length, textBounds)
-                    
-                    // Calculate label size
-                    val labelWidth = textBounds.width() + labelPadding * 2
-                    val labelHeight = textBounds.height() + labelPadding * 2
-                    
-                    // Calculate smart label position
-                    val labelRect = calculateSmartLabelRect(
-                        transformedRect,
-                        labelWidth,
-                        labelHeight,
-                        output.width.toFloat(),
-                        output.height.toFloat()
-                    )
-                    
-                    // Draw label background
-                    paint.style = Paint.Style.FILL
-                    canvas.drawRoundRect(labelRect, cornerRadius, cornerRadius, paint)
-                    
-                    // Draw label text in white
-                    paint.color = Color.WHITE
-                    canvas.drawText(
-                        labelText,
-                        labelRect.left + labelPadding,
-                        labelRect.bottom - labelPadding,
-                        paint
-                    )
-                    
-                    // Reset paint style
-                    paint.style = Paint.Style.STROKE
-                }
+            // Calculate label size
+            val labelWidth = textBounds.width() + labelPadding * 2
+            val labelHeight = textBounds.height() + labelPadding * 2
 
-                // Overlay segmentation mask if available
-                result.masks?.combinedMask?.let { mask ->
-                    val maskToUse: Bitmap
-                    
-                    if (rotateForCamera) {
-                        // Mask also needs to be rotated (camera feed)
-                        val maskMatrix = Matrix().apply {
-                            postRotate(90f)
-                        }
-                        maskToUse = Bitmap.createBitmap(
-                            mask,
-                            0,
-                            0,
-                            mask.width,
-                            mask.height,
-                            maskMatrix,
-                            true
-                        )
-                    } else {
-                        // No rotation for single image
-                        maskToUse = mask
-                    }
+            // Calculate smart label position
+            val labelRect = calculateSmartLabelRect(
+                transformedRect,
+                labelWidth,
+                labelHeight,
+                output.width.toFloat(),
+                output.height.toFloat()
+            )
 
-                    val maskScaled = Bitmap.createScaledBitmap(
-                        maskToUse,
-                        output.width,
-                        output.height,
-                        true
-                    )
-                    paint.style = Paint.Style.FILL
-                    paint.alpha = 128
-                    canvas.drawBitmap(maskScaled, 0f, 0f, paint)
-                }
-            }
-            YOLOTask.CLASSIFY -> {
-                // Draw classification result at the top
-                result.probs?.let { probs ->
-                    paint.style = Paint.Style.FILL
-                    paint.color = Color.WHITE
-                    paint.alpha = 180
-                    canvas.drawRect(0f, 0f, output.width.toFloat(), 160f, paint)
+            // Draw label background
+            paint.style = Paint.Style.FILL
+            canvas.drawRoundRect(labelRect, cornerRadius, cornerRadius, paint)
 
-                    paint.alpha = 255
-                    paint.color = Color.BLACK
-                    paint.textSize = 60f
-                    canvas.drawText(
-                        "${probs.top1} ${"%.2f".format(probs.top1Conf * 100)}%",
-                        20f,
-                        80f,
-                        paint
-                    )
+            // Draw label text in white
+            paint.color = Color.WHITE
+            canvas.drawText(
+                labelText,
+                labelRect.left + labelPadding,
+                labelRect.bottom - labelPadding,
+                paint
+            )
 
-                    // Draw top-5 classes
-                    paint.textSize = 30f
-                    for ((i, cls) in probs.top5.withIndex()) {
-                        if (i == 0) continue // Skip top-1 which is already shown
-                        canvas.drawText(
-                            "$cls ${"%.2f".format(probs.top5Confs[i] * 100)}%",
-                            20f,
-                            120f + i * 40f,
-                            paint
-                        )
-                    }
-                }
-            }
-            YOLOTask.POSE -> {
-                // Draw bounding boxes
-                for ((i, box) in result.boxes.withIndex()) {
-                    paint.color = ultralyticsColors[box.index % ultralyticsColors.size]
-
-                    // Transform coordinates
-                    val transformedRect = transformRect(box.xywh)
-                    // Draw rounded rectangle with corner radius
-                    val cornerRadius = 12f
-                    canvas.drawRoundRect(transformedRect, cornerRadius, cornerRadius, paint)
-
-                    // Draw label with background
-                    val labelText = "${box.cls} ${(box.conf * 100).toInt()}%"
-                    val labelPadding = 8f
-                    
-                    // Measure text
-                    val textBounds = Rect()
-                    paint.getTextBounds(labelText, 0, labelText.length, textBounds)
-                    
-                    // Calculate label size
-                    val labelWidth = textBounds.width() + labelPadding * 2
-                    val labelHeight = textBounds.height() + labelPadding * 2
-                    
-                    // Calculate smart label position
-                    val labelRect = calculateSmartLabelRect(
-                        transformedRect,
-                        labelWidth,
-                        labelHeight,
-                        output.width.toFloat(),
-                        output.height.toFloat()
-                    )
-                    
-                    // Draw label background
-                    paint.style = Paint.Style.FILL
-                    canvas.drawRoundRect(labelRect, cornerRadius, cornerRadius, paint)
-                    
-                    // Draw label text in white
-                    paint.color = Color.WHITE
-                    canvas.drawText(
-                        labelText,
-                        labelRect.left + labelPadding,
-                        labelRect.bottom - labelPadding,
-                        paint
-                    )
-                    
-                    // Reset paint style
-                    paint.style = Paint.Style.STROKE
-                }
-
-                // Draw keypoints
-                for (keypoints in result.keypointsList) {
-                    paint.style = Paint.Style.FILL
-
-                    // Transform and draw keypoint coordinates (only when needed)
-                    val transformedPoints = keypoints.xy.map { (x, y) ->
-                        if (rotateForCamera) {
-                            // x' = y, y' = width - x (camera feed rotation)
-                            val originalWidth = bitmap.width.toFloat()
-                            Pair(y, originalWidth - x)
-                        } else {
-                            // No rotation for single image
-                            Pair(x, y)
-                        }
-                    }
-
-                    // Define keypoint color indices (same as YoloView)
-                    val kptColorIndices = intArrayOf(
-                        16, 16, 16, 16, 16,
-                        9, 9, 9, 9, 9, 9,
-                        0, 0, 0, 0, 0, 0
-                    )
-                    
-                    // Define pose palette for coloring
-                    val posePalette = arrayOf(
-                        floatArrayOf(255f, 128f, 0f),
-                        floatArrayOf(255f, 153f, 51f),
-                        floatArrayOf(255f, 178f, 102f),
-                        floatArrayOf(230f, 230f, 0f),
-                        floatArrayOf(255f, 153f, 255f),
-                        floatArrayOf(153f, 204f, 255f),
-                        floatArrayOf(255f, 102f, 255f),
-                        floatArrayOf(255f, 51f, 255f),
-                        floatArrayOf(102f, 178f, 255f),
-                        floatArrayOf(51f, 153f, 255f),
-                        floatArrayOf(255f, 153f, 153f),
-                        floatArrayOf(255f, 102f, 102f),
-                        floatArrayOf(255f, 51f, 51f),
-                        floatArrayOf(153f, 255f, 153f),
-                        floatArrayOf(102f, 255f, 102f),
-                        floatArrayOf(51f, 255f, 51f),
-                        floatArrayOf(0f, 255f, 0f),
-                        floatArrayOf(0f, 0f, 255f),
-                        floatArrayOf(255f, 0f, 0f),
-                        floatArrayOf(255f, 255f, 255f)
-                    )
-                    
-                    // Draw keypoints with proper coloring
-                    for ((i, point) in transformedPoints.withIndex()) {
-                        val confidence = keypoints.conf[i]
-                        if (confidence > 0.25f) {
-                            // Use same color scheme as YoloView
-                            val colorIdx = if (i < kptColorIndices.size) kptColorIndices[i] else 0
-                            val rgbArray = posePalette[colorIdx % posePalette.size]
-                            paint.color = Color.argb(
-                                255,
-                                rgbArray[0].toInt().coerceIn(0, 255),
-                                rgbArray[1].toInt().coerceIn(0, 255),
-                                rgbArray[2].toInt().coerceIn(0, 255)
-                            )
-                            canvas.drawCircle(point.first, point.second, 8f, paint)
-                        }
-                    }
-
-                    // Draw skeleton lines using proper skeleton structure
-                    paint.strokeWidth = 2f
-                    
-                    // Convert transformedPoints to PointF array for skeleton drawing
-                    val points = Array<PointF?>(transformedPoints.size) { null }
-                    for (i in transformedPoints.indices) {
-                        if (keypoints.conf[i] > 0.25f) {
-                            points[i] = PointF(transformedPoints[i].first, transformedPoints[i].second)
-                        }
-                    }
-                    
-                    // Define skeleton connections (same as YoloView)
-                    val skeleton = arrayOf(
-                        intArrayOf(16, 14),
-                        intArrayOf(14, 12),
-                        intArrayOf(17, 15),
-                        intArrayOf(15, 13),
-                        intArrayOf(12, 13),
-                        intArrayOf(6, 12),
-                        intArrayOf(7, 13),
-                        intArrayOf(6, 7),
-                        intArrayOf(6, 8),
-                        intArrayOf(7, 9),
-                        intArrayOf(8, 10),
-                        intArrayOf(9, 11),
-                        intArrayOf(2, 3),
-                        intArrayOf(1, 2),
-                        intArrayOf(1, 3),
-                        intArrayOf(2, 4),
-                        intArrayOf(3, 5),
-                        intArrayOf(4, 6),
-                        intArrayOf(5, 7)
-                    )
-                    
-                    // Define color indices for limbs
-                    val limbColorIndices = intArrayOf(
-                        0, 0, 0, 0,
-                        7, 7, 7,
-                        9, 9, 9, 9, 9,
-                        16, 16, 16, 16, 16, 16, 16
-                    )
-                    
-                    // Draw skeleton connections
-                    paint.style = Paint.Style.STROKE
-                    for ((idx, bone) in skeleton.withIndex()) {
-                        val i1 = bone[0] - 1  // 1-indexed to 0-indexed
-                        val i2 = bone[1] - 1
-                        val p1 = points.getOrNull(i1)
-                        val p2 = points.getOrNull(i2)
-                        
-                        if (p1 != null && p2 != null) {
-                            // Use same color scheme as YoloView
-                            val limbColorIdx = if (idx < limbColorIndices.size) limbColorIndices[idx] else 0
-                            val rgbArray = posePalette[limbColorIdx % posePalette.size]
-                            paint.color = Color.argb(
-                                255,
-                                rgbArray[0].toInt().coerceIn(0, 255),
-                                rgbArray[1].toInt().coerceIn(0, 255),
-                                rgbArray[2].toInt().coerceIn(0, 255)
-                            )
-                            canvas.drawLine(p1.x, p1.y, p2.x, p2.y, paint)
-                        }
-                    }
-                    paint.strokeWidth = 3f
-                }
-            }
-            YOLOTask.OBB -> {
-                // Draw oriented bounding boxes
-                for (obbResult in result.obb) {
-                    paint.color = ultralyticsColors[obbResult.index % ultralyticsColors.size]
-
-                    // Transform OBB polygon vertices (only when needed)
-                    val poly = obbResult.box.toPolygon().map {
-                        // Scale original coordinates to image size
-                        val x = it.x * bitmap.width
-                        val y = it.y * bitmap.height
-
-                        if (rotateForCamera) {
-                            // Rotation transformation (camera feed)
-                            val originalWidth = bitmap.width.toFloat()
-                            PointF(y, originalWidth - x)
-                        } else {
-                            // No rotation for single image
-                            PointF(x, y)
-                        }
-                    }
-
-                    if (poly.size >= 4) {
-                        val path = Path().apply {
-                            moveTo(poly[0].x, poly[0].y)
-                            for (p in poly.drop(1)) {
-                                lineTo(p.x, p.y)
-                            }
-                            close()
-                        }
-                        canvas.drawPath(path, paint)
-
-                        // Draw label with background
-                        val labelText = "${obbResult.cls} ${"%.2f".format(obbResult.confidence * 100)}%"
-                        val labelPadding = 8f
-                        val cornerRadius = 12f
-                        
-                        // Measure text
-                        val textBounds = Rect()
-                        paint.getTextBounds(labelText, 0, labelText.length, textBounds)
-                        
-                        // Find bounding box of the OBB polygon
-                        val minX = poly.map { it.x }.minOrNull() ?: 0f
-                        val maxX = poly.map { it.x }.maxOrNull() ?: 0f
-                        val minY = poly.map { it.y }.minOrNull() ?: 0f
-                        val maxY = poly.map { it.y }.maxOrNull() ?: 0f
-                        val obbBounds = RectF(minX, minY, maxX, maxY)
-                        
-                        // Calculate label size
-                        val labelWidth = textBounds.width() + labelPadding * 2
-                        val labelHeight = textBounds.height() + labelPadding * 2
-                        
-                        // Calculate smart label position
-                        val labelRect = calculateSmartLabelRect(
-                            obbBounds,
-                            labelWidth,
-                            labelHeight,
-                            output.width.toFloat(),
-                            output.height.toFloat()
-                        )
-                        
-                        // Draw label background
-                        paint.style = Paint.Style.FILL
-                        canvas.drawRoundRect(labelRect, cornerRadius, cornerRadius, paint)
-                        
-                        // Draw label text in white
-                        paint.color = Color.WHITE
-                        canvas.drawText(
-                            labelText,
-                            labelRect.left + labelPadding,
-                            labelRect.bottom - labelPadding,
-                            paint
-                        )
-                        
-                        // Reset paint
-                        paint.color = ultralyticsColors[obbResult.index % ultralyticsColors.size]
-                        paint.style = Paint.Style.STROKE
-                    }
-                }
-            }
+            // Reset paint for next box
+            paint.style = Paint.Style.STROKE
         }
 
         return output
@@ -706,14 +322,14 @@ class YOLO(
     fun setConfidenceThreshold(threshold: Double) {
         predictor.setConfidenceThreshold(threshold)
     }
-    
+
     /**
      * Set confidence threshold for detection (Float overload)
      */
     fun setConfidenceThreshold(threshold: Float) {
         predictor.setConfidenceThreshold(threshold.toDouble())
     }
-    
+
     /**
      * Get current confidence threshold
      */
@@ -727,14 +343,14 @@ class YOLO(
     fun setIouThreshold(threshold: Double) {
         predictor.setIouThreshold(threshold)
     }
-    
+
     /**
      * Set IoU threshold for non-maximum suppression (Float overload)
      */
     fun setIouThreshold(threshold: Float) {
         predictor.setIouThreshold(threshold.toDouble())
     }
-    
+
     /**
      * Get current IoU threshold
      */

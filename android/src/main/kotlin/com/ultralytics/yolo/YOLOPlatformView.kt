@@ -189,12 +189,8 @@ class YOLOPlatformView(
                     Log.d(TAG, "Received setStreamingConfig call")
                     val streamConfig = YOLOStreamConfig(
                         includeDetections = call.argument<Boolean>("includeDetections") ?: true,
-                        includeClassifications = call.argument<Boolean>("includeClassifications") ?: true,
                         includeProcessingTimeMs = call.argument<Boolean>("includeProcessingTimeMs") ?: true,
                         includeFps = call.argument<Boolean>("includeFps") ?: true,
-                        includeMasks = call.argument<Boolean>("includeMasks") ?: false,
-                        includePoses = call.argument<Boolean>("includePoses") ?: false,
-                        includeOBB = call.argument<Boolean>("includeOBB") ?: false,
                         includeOriginalImage = call.argument<Boolean>("includeOriginalImage") ?: false,
                         maxFPS = call.argument<Int>("maxFPS"),
                         throttleIntervalMs = call.argument<Int>("throttleInterval"),
@@ -283,12 +279,8 @@ class YOLOPlatformView(
             // Convert creation params to YOLOStreamConfig
             YOLOStreamConfig(
                 includeDetections = streamingConfigParam["includeDetections"] as? Boolean ?: true,
-                includeClassifications = streamingConfigParam["includeClassifications"] as? Boolean ?: true,
                 includeProcessingTimeMs = streamingConfigParam["includeProcessingTimeMs"] as? Boolean ?: true,
                 includeFps = streamingConfigParam["includeFps"] as? Boolean ?: true,
-                includeMasks = streamingConfigParam["includeMasks"] as? Boolean ?: true,
-                includePoses = streamingConfigParam["includePoses"] as? Boolean ?: true,
-                includeOBB = streamingConfigParam["includeOBB"] as? Boolean ?: true,
                 includeOriginalImage = streamingConfigParam["includeOriginalImage"] as? Boolean ?: false,
                 maxFPS = when (val maxFPS = streamingConfigParam["maxFPS"]) {
                     is Int -> maxFPS

@@ -68,17 +68,6 @@ fun polygonArea(poly: List<PointF>): Float {
     return abs(area) * 0.5f
 }
 
-fun obbIoU(box1: OBB, box2: OBB): Float {
-    val poly1 = box1.toPolygon()
-    val poly2 = box2.toPolygon()
-    val area1 = box1.area
-    val area2 = box2.area
-    val interPoly = polygonIntersection(poly1, poly2)
-    val interArea = polygonArea(interPoly)
-    val unionArea = area1 + area2 - interArea
-    return if (unionArea <= 0f) 0f else interArea / unionArea
-}
-
 fun nonMaxSuppression(boxes: List<RectF>, scores: List<Float>, iouThreshold: Float): List<Int> {
     val sortedIndices = scores.indices.sortedByDescending { scores[it] }
     val selected = mutableListOf<Int>()
@@ -108,25 +97,4 @@ fun computeIoU(a: RectF, b: RectF): Float {
     val interArea = max(0f, interRight - interLeft) * max(0f, interBottom - interTop)
     val unionArea = (a.right - a.left) * (a.bottom - a.top) + (b.right - b.left) * (b.bottom - b.top) - interArea
     return if (unionArea > 0) interArea / unionArea else 0f
-}
-
-fun nonMaxSuppressionOBB(boxes: List<OBB>, scores: List<Float>, iouThreshold: Float): List<Int> {
-    val sortedIndices = scores.indices.sortedByDescending { scores[it] }
-    val selected = mutableListOf<Int>()
-    val active = BooleanArray(boxes.size) { true }
-    for (i in sortedIndices.indices) {
-        val idx = sortedIndices[i]
-        if (!active[idx]) continue
-        selected.add(idx)
-        val boxA = boxes[idx]
-        for (j in i + 1 until sortedIndices.size) {
-            val idxB = sortedIndices[j]
-            if (active[idxB]) {
-                if (obbIoU(boxA, boxes[idxB]) > iouThreshold) {
-                    active[idxB] = false
-                }
-            }
-        }
-    }
-    return selected
 }

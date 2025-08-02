@@ -12,7 +12,6 @@ data class YOLOResult(
     val masks: Masks? = null,
     val probs: Probs? = null,
     val keypointsList: List<Keypoints> = emptyList(),
-    val obb: List<OBBResult> = emptyList(),
     val annotatedImage: Bitmap? = null,
     val speed: Double,
     val fps: Double? = null,
@@ -45,13 +44,6 @@ data class Keypoints(
     val xyn: List<Pair<Float, Float>>,
     val xy: List<Pair<Float, Float>>,
     val conf: List<Float>
-)
-
-data class OBBResult(
-    val box: OBB,
-    val confidence: Float,
-    val cls: String,
-    val index: Int
 )
 
 data class Size(val width: Int, val height: Int)
