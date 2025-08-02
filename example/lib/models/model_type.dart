@@ -8,19 +8,7 @@ import 'package:ultralytics_yolo/yolo_task.dart';
 /// - {task} indicates the specific task (detect, segment, classify, pose, obb)
 enum ModelType {
   /// Object detection model
-  detect('yolo11n', YOLOTask.detect),
-
-  /// Instance segmentation model
-  segment('yolo11n-seg', YOLOTask.segment),
-
-  /// Image classification model
-  classify('yolo11n-cls', YOLOTask.classify),
-
-  /// Pose estimation model
-  pose('yolo11n-pose', YOLOTask.pose),
-
-  /// Oriented bounding box detection model
-  obb('yolo11n-obb', YOLOTask.obb);
+  detect('yolo11n', YOLOTask.detect);
 
   /// The name of the model file (without extension)
   final String modelName;
