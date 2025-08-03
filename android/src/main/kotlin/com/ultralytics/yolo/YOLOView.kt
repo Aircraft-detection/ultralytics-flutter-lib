@@ -341,7 +341,7 @@ class YOLOView @JvmOverloads constructor(
     fun setModel(modelPath: String, callback: ((Boolean) -> Unit)? = null) {
         Executors.newSingleThreadExecutor().execute {
             try {
-                val newPredictor = ObjectDetector(context, modelPath, loadLabels(modelPath), useGpu = true).apply {
+                val newPredictor = ObjectDetector(context, modelPath, loadLabels(), useGpu = true).apply {
                     setConfidenceThreshold(confidenceThreshold)
                     setIouThreshold(iouThreshold)
                     setNumItemsThreshold(numItemsThreshold)
@@ -368,14 +368,7 @@ class YOLOView @JvmOverloads constructor(
         }
     }
 
-    private fun loadLabels(modelPath: String): List<String> {
-        // Try to load labels from model metadata first
-        val loadedLabels = YOLOFileUtils.loadLabelsFromAppendedZip(context, modelPath)
-        if (loadedLabels != null) {
-            Log.d(TAG, "Labels loaded from model metadata: ${loadedLabels.size} classes")
-            return loadedLabels
-        }
-
+    private fun loadLabels(): List<String> {
         // Return COCO dataset's 80 classes as a fallback
         // This is much more complete than the previous 7-class hardcoded list
         Log.d(TAG, "Using COCO classes as fallback")

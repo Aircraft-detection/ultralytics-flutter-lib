@@ -97,33 +97,6 @@ class ObjectDetector(
         val assetManager = context.assets
         val modelBuffer  = YOLOUtils.loadModelFile(context, modelPath)
 
-        /* --- Get labels from metadata (try Appended ZIP → FlatBuffers in order) --- */
-        var loadedLabels = YOLOFileUtils.loadLabelsFromAppendedZip(context, modelPath)
-        var labelsWereLoaded = loadedLabels != null
-
-        if (labelsWereLoaded) {
-            this.labels = loadedLabels!! // Use labels from appended ZIP
-            Log.i(TAG, "Labels successfully loaded from appended ZIP.")
-        } else {
-            Log.w(TAG, "Could not load labels from appended ZIP, trying FlatBuffers metadata...")
-            // Try FlatBuffers as a fallback
-            if (loadLabelsFromFlatbuffers(modelBuffer)) {
-                labelsWereLoaded = true
-                Log.i(TAG, "Labels successfully loaded from FlatBuffers metadata.")
-            }
-        }
-
-        if (!labelsWereLoaded) {
-            Log.w(TAG, "No embedded labels found from appended ZIP or FlatBuffers. Using labels passed via constructor (if any) or an empty list.")
-            // If labels were passed via constructor and not overridden, they will be used.
-            // If no labels were passed and none loaded, this.labels will be what was passed or an uninitialized/empty list
-            // depending on how the 'labels' property was handled if it was nullable or had a default.
-            // Given 'override var labels: List<String>' is passed in constructor, it will hold the passed value.
-            if (this.labels.isEmpty()) {
-                 Log.w(TAG, "Warning: No labels loaded and no labels provided via constructor. Detections might lack class names.")
-            }
-        }
-
         interpreter = Interpreter(modelBuffer, interpreterOptions)
         // Call allocateTensors() once during initialization, not in the inference loop
         interpreter.allocateTensors()
