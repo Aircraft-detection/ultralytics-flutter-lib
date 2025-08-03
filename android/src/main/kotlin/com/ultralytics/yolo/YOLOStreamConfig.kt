@@ -7,11 +7,6 @@ package com.ultralytics.yolo
  * Controls what data is included in real-time streaming and performance settings
  */
 data class YOLOStreamConfig(
-    // Basic inference data (always useful)
-    val includeDetections: Boolean = true,
-    val includeProcessingTimeMs: Boolean = true,
-    val includeFps: Boolean = true,
-
     // Original image data (uses ImageProxy bitmap reuse - no additional conversion needed)
     val includeOriginalImage: Boolean = false,
     
@@ -26,45 +21,4 @@ data class YOLOStreamConfig(
     // Note: annotatedImage is intentionally excluded for YOLOView
     // YOLOView uses Canvas drawing (real-time overlay), not bitmap generation
 ) {
-    companion object {
-        /**
-         * Preset configurations for common use cases
-         */
-        
-        /** Default minimal configuration - optimized for maximum performance */
-        val DEFAULT = YOLOStreamConfig()  // Uses all default values (minimal data)
-        
-        /** Full features configuration - includes all detection features */
-        val FULL = YOLOStreamConfig(
-            includeDetections = true,
-            includeProcessingTimeMs = true,
-            includeFps = true,
-            includeOriginalImage = false,
-            maxFPS = null  // No limit, but will be slower due to data processing
-        )
-        
-        /** Debug configuration - includes everything for development */
-        val DEBUG = YOLOStreamConfig(
-            includeDetections = true,
-            includeProcessingTimeMs = true,
-            includeFps = true,
-            includeOriginalImage = true,
-            maxFPS = 10  // Limited FPS due to heavy data
-        )
-        
-        /** Custom builder for specific needs */
-        fun custom(
-            includeOriginalImage: Boolean = false,
-            maxFPS: Int? = null,
-            throttleIntervalMs: Int? = null,
-            inferenceFrequency: Int? = null,
-            skipFrames: Int? = null
-        ) = YOLOStreamConfig(
-            includeOriginalImage = includeOriginalImage,
-            maxFPS = maxFPS,
-            throttleIntervalMs = throttleIntervalMs,
-            inferenceFrequency = inferenceFrequency,
-            skipFrames = skipFrames
-        )
-    }
 }

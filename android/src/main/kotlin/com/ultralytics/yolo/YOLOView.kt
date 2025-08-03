@@ -170,7 +170,7 @@ class YOLOView @JvmOverloads constructor(
         Log.d(TAG, "✅ New streaming config set: $config")
         Log.d(
             TAG,
-            "🎯 Key settings - includeProcessingTimeMs: ${config?.includeProcessingTimeMs}, inferenceFrequency: ${config?.inferenceFrequency}"
+            "🎯 Key settings - inferenceFrequency: ${config?.inferenceFrequency}"
         )
     }
 
@@ -543,8 +543,6 @@ class YOLOView @JvmOverloads constructor(
     private fun onFrame(imageProxy: ImageProxy) {
         val w = imageProxy.width
         val h = imageProxy.height
-        val orientation = context.resources.configuration.orientation
-        val isLandscapeDevice = orientation == Configuration.ORIENTATION_LANDSCAPE
 
         val bitmap = ImageUtils.toBitmap(imageProxy) ?: run {
             Log.e(TAG, "Failed to convert ImageProxy to Bitmap")
@@ -972,54 +970,47 @@ class YOLOView @JvmOverloads constructor(
         val map = HashMap<String, Any>()
         val config = streamConfig ?: return emptyMap()
 
-        // Convert detection results (if enabled)
-        if (config.includeDetections) {
-            val detections = ArrayList<Map<String, Any>>()
+        val detections = ArrayList<Map<String, Any>>()
 
-            // Convert detection boxes - CRITICAL: use detectionIndex, not class index
-            for ((detectionIndex, box) in result.boxes.withIndex()) {
-                val detection = HashMap<String, Any>()
-                detection["classIndex"] = box.index
-                detection["className"] = box.cls
-                detection["confidence"] = box.conf.toDouble()
+        // Convert detection boxes - CRITICAL: use detectionIndex, not class index
+        for ((detectionIndex, box) in result.boxes.withIndex()) {
+            val detection = HashMap<String, Any>()
+            detection["classIndex"] = box.index
+            detection["className"] = box.cls
+            detection["confidence"] = box.conf.toDouble()
 
-                // Bounding box in original coordinates
-                val boundingBox = HashMap<String, Any>()
-                boundingBox["left"] = box.xywh.left.toDouble()
-                boundingBox["top"] = box.xywh.top.toDouble()
-                boundingBox["right"] = box.xywh.right.toDouble()
-                boundingBox["bottom"] = box.xywh.bottom.toDouble()
-                detection["boundingBox"] = boundingBox
+            // Bounding box in original coordinates
+            val boundingBox = HashMap<String, Any>()
+            boundingBox["left"] = box.xywh.left.toDouble()
+            boundingBox["top"] = box.xywh.top.toDouble()
+            boundingBox["right"] = box.xywh.right.toDouble()
+            boundingBox["bottom"] = box.xywh.bottom.toDouble()
+            detection["boundingBox"] = boundingBox
 
-                // Normalized bounding box (0-1)
-                val normalizedBox = HashMap<String, Any>()
-                normalizedBox["left"] = box.xywhn.left.toDouble()
-                normalizedBox["top"] = box.xywhn.top.toDouble()
-                normalizedBox["right"] = box.xywhn.right.toDouble()
-                normalizedBox["bottom"] = box.xywhn.bottom.toDouble()
-                detection["normalizedBox"] = normalizedBox
+            // Normalized bounding box (0-1)
+            val normalizedBox = HashMap<String, Any>()
+            normalizedBox["left"] = box.xywhn.left.toDouble()
+            normalizedBox["top"] = box.xywhn.top.toDouble()
+            normalizedBox["right"] = box.xywhn.right.toDouble()
+            normalizedBox["bottom"] = box.xywhn.bottom.toDouble()
+            detection["normalizedBox"] = normalizedBox
 
-                detections.add(detection)
-            }
-
-            map["detections"] = detections
-            Log.d(
-                TAG,
-                "✅ Total detections in stream: ${detections.size} (boxes: ${result.boxes.size})"
-            )
+            detections.add(detection)
         }
 
-        // Add performance metrics (if enabled)
-        if (config.includeProcessingTimeMs) {
-            val processingTimeMs = result.speed.toDouble()
-            map["processingTimeMs"] = processingTimeMs
-        } else {
-            Log.d(TAG, "⚠️ Skipping processingTimeMs (includeProcessingTimeMs=${config.includeProcessingTimeMs})")
-        }
+        map["detections"] = detections
+        Log.d(
+            TAG,
+            "✅ Total detections in stream: ${detections.size} (boxes: ${result.boxes.size})"
+        )
 
-        if (config.includeFps) {
-            map["fps"] = result.fps?.toDouble() ?: 0.0
-        }
+
+        // Add performance metrics
+        val processingTimeMs = result.speed.toDouble()
+        map["processingTimeMs"] = processingTimeMs
+
+
+        map["fps"] = result.fps?.toDouble() ?: 0.0
 
         // Add original image (if available and enabled)
         if (config.includeOriginalImage) {

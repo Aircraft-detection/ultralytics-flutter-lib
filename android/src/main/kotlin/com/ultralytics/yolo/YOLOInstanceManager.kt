@@ -33,26 +33,7 @@ class YOLOInstanceManager {
         loadingStates[instanceId] = false
         Log.d(TAG, "Created instance placeholder: $instanceId")
     }
-    
-    /**
-     * Gets a YOLO instance by ID
-     */
-    fun getInstance(instanceId: String): YOLO? {
-        return instances[instanceId]
-    }
-    
-    /**
-     * Loads a model for a specific instance
-     */
-    fun loadModel(
-        instanceId: String,
-        context: Context,
-        modelPath: String,
-        callback: (Result<Unit>) -> Unit
-    ) {
-        loadModel(instanceId, context, modelPath, null, callback)
-    }
-    
+
     /**
      * Loads a model for a specific instance with classifier options
      */
@@ -110,34 +91,4 @@ class YOLOInstanceManager {
         Log.d(TAG, "Removed instance: $instanceId")
     }
     
-    /**
-     * Gets all active instance IDs
-     */
-    fun getActiveInstanceIds(): List<String> {
-        return instances.keys.toList()
-    }
-    
-    /**
-     * Checks if an instance exists
-     */
-    fun hasInstance(instanceId: String): Boolean {
-        return instances.containsKey(instanceId)
-    }
-    
-    /**
-     * Gets classifier options for a specific instance
-     */
-    fun getClassifierOptions(instanceId: String): Map<String, Any>? {
-        return instanceOptions[instanceId]
-    }
-    
-    /**
-     * Clears all instances
-     */
-    fun clearAll() {
-        instances.clear()
-        loadingStates.clear()
-        instanceOptions.clear()
-        Log.d(TAG, "Cleared all instances")
-    }
 }
