@@ -117,39 +117,5 @@ object YOLOUtils {
         }
     }
     
-    /**
-     * Checks all possible paths where a model could be found
-     * @param context Application context
-     * @param modelPath Path to check (could be asset or absolute path)
-     * @return Map containing status and resolved path
-     */
-    fun checkModelExistence(context: Context, modelPath: String): Map<String, Any> {
-        // Try with .tflite extension
-        val withExtension = ensureTFLiteExtension(modelPath)
-        
-        // Check absolute paths first
-        if (isAbsolutePath(withExtension) && fileExistsAtPath(withExtension)) {
-            return mapOf("exists" to true, "path" to withExtension, "location" to "filesystem")
-        }
-        
-        if (isAbsolutePath(modelPath) && fileExistsAtPath(modelPath)) {
-            return mapOf("exists" to true, "path" to modelPath, "location" to "filesystem")
-        }
-        
-        // Then check assets
-        try {
-            // This will throw an exception if the asset doesn't exist
-            context.assets.openFd(withExtension).close()
-            return mapOf("exists" to true, "path" to withExtension, "location" to "assets")
-        } catch (e: Exception) {
-            // Asset with extension doesn't exist, try without extension
-            try {
-                context.assets.openFd(modelPath).close()
-                return mapOf("exists" to true, "path" to modelPath, "location" to "assets")
-            } catch (e2: Exception) {
-                // Neither exists
-                return mapOf("exists" to false, "path" to modelPath, "location" to "unknown")
-            }
-        }
-    }
+
 }

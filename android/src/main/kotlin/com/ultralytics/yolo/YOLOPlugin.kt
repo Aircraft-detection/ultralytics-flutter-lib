@@ -121,81 +121,13 @@ class YOLOPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler
   override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
     when (call.method) {
       "createInstance" -> {
-        try {
-          val args = call.arguments as? Map<*, *>
-          val instanceId = args?.get("instanceId") as? String
-          
-          if (instanceId == null) {
-            result.error("bad_args", "Missing instanceId", null)
-            return
-          }
-          
-          // Create instance placeholder
-          YOLOInstanceManager.shared.createInstance(instanceId)
-          
-          // Register a new channel for this instance
-          val channelName = "yolo_single_image_channel_$instanceId"
-          val instanceChannel = MethodChannel(binaryMessenger, channelName)
-          instanceChannel.setMethodCallHandler(this)
-          instanceChannels[instanceId] = instanceChannel
-          
-          result.success(null)
-        } catch (e: Exception) {
-          Log.e(TAG, "Error creating instance", e)
-          result.error("create_error", "Failed to create instance: ${e.message}", null)
-        }
       }
       
       "loadModel" -> {
-        try {
-          val args = call.arguments as? Map<*, *>
-          var modelPath = args?.get("modelPath") as? String ?: "yolo11n"
-          val instanceId = args?.get("instanceId") as? String ?: "default"
-          val classifierOptionsMap = args?.get("classifierOptions") as? Map<String, Any>
-          
-          // Resolve the model path (handling absolute paths, internal:// scheme, or asset paths)
-          modelPath = resolveModelPath(modelPath)
-
-          // Use classifier options map directly (follows existing pattern)
-          val classifierOptions = classifierOptionsMap
-          
-          // Log classifier options for debugging
-          if (classifierOptions != null) {
-            Log.d(TAG, "Parsed classifier options: $classifierOptions")
-          }
-          
-          // Initialize YOLO with instance manager
-          YOLOInstanceManager.shared.loadModel(
-            instanceId = instanceId,
-            context = applicationContext,
-            modelPath = modelPath,
-            classifierOptions = classifierOptions
-          ) { loadResult ->
-            if (loadResult.isSuccess) {
-              Log.d(TAG, "Model loaded successfully: $modelPath, instance: $instanceId ${if (classifierOptions != null) "with classifier options" else ""}")
-              result.success(true)
-            } else {
-              Log.e(TAG, "Failed to load model for instance $instanceId", loadResult.exceptionOrNull())
-              result.error("MODEL_NOT_FOUND", loadResult.exceptionOrNull()?.message ?: "Failed to load model", null)
-            }
-          }
-        } catch (e: Exception) {
-          Log.e(TAG, "Failed to load model", e)
-          result.error("model_error", "Failed to load model: ${e.message}", null)
-        }
       }
 
       "checkModelExists" -> {
-        try {
-          val args = call.arguments as? Map<*, *>
-          val originalPath = args?.get("modelPath") as? String ?: ""
-          val modelPath = resolveModelPath(originalPath)
-          
-          val checkResult = YOLOUtils.checkModelExistence(applicationContext, modelPath)
-          result.success(checkResult)
-        } catch (e: Exception) {
-          result.error("check_error", "Failed to check model: ${e.message}", null)
-        }
+
       }
       // END OF "checkModelExists" case
       
@@ -249,27 +181,7 @@ class YOLOPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler
       }
       
       "disposeInstance" -> {
-        try {
-          val args = call.arguments as? Map<*, *>
-          val instanceId = args?.get("instanceId") as? String
-          
-          if (instanceId == null) {
-            result.error("bad_args", "Missing instanceId", null)
-            return
-          }
-          
-          // Remove instance from manager
-          YOLOInstanceManager.shared.removeInstance(instanceId)
-          
-          // Remove the channel for this instance
-          instanceChannels[instanceId]?.setMethodCallHandler(null)
-          instanceChannels.remove(instanceId)
-          
-          result.success(null)
-        } catch (e: Exception) {
-          Log.e(TAG, "Error disposing instance", e)
-          result.error("dispose_error", "Failed to dispose instance: ${e.message}", null)
-        }
+
       }
       
       else -> result.notImplemented()
