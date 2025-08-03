@@ -118,69 +118,20 @@ class YOLOPlatformView(
 
             when (call.method) {
                 "setThreshold" -> {
-                    val threshold = call.argument<Double>("threshold") ?: 0.5
-                    Log.d(TAG, "Setting confidence threshold to $threshold")
-                    yoloView.setConfidenceThreshold(threshold)
-                    result.success(null)
                 }
                 "setConfidenceThreshold" -> {
-                    val threshold = call.argument<Double>("threshold") ?: 0.5
-                    Log.d(TAG, "Setting confidence threshold to $threshold")
-                    yoloView.setConfidenceThreshold(threshold)
-                    result.success(null)
                 }
-                // Support both "setIoUThreshold" (from Dart) and "setIouThreshold" (internal method)
                 "setIoUThreshold", "setIouThreshold" -> {
-                    val threshold = call.argument<Double>("threshold") ?: 0.45
-                    Log.d(TAG, "Setting IoU threshold to $threshold")
-                    yoloView.setIouThreshold(threshold)
-                    result.success(null)
                 }
                 "setNumItemsThreshold" -> {
-                    val numItems = call.argument<Int>("numItems") ?: 30
-                    Log.d(TAG, "Setting numItems threshold to $numItems")
-                    yoloView.setNumItemsThreshold(numItems)
-                    result.success(null)
                 }
                 "setThresholds" -> {
-                    val confidenceThreshold = call.argument<Double>("confidenceThreshold")
-                    val iouThreshold = call.argument<Double>("iouThreshold")
-                    val numItemsThreshold = call.argument<Int>("numItemsThreshold")
-
-                    if (confidenceThreshold != null) {
-                        Log.d(TAG, "Setting confidence threshold to $confidenceThreshold")
-                        yoloView.setConfidenceThreshold(confidenceThreshold)
-                    }
-                    if (iouThreshold != null) {
-                        Log.d(TAG, "Setting IoU threshold to $iouThreshold")
-                        yoloView.setIouThreshold(iouThreshold)
-                    }
-                    if (numItemsThreshold != null) {
-                        Log.d(TAG, "Setting numItems threshold to $numItemsThreshold")
-                        yoloView.setNumItemsThreshold(numItemsThreshold)
-                    }
-
-                    result.success(null)
                 }
                 "switchCamera" -> {
-                    Log.d(TAG, "Switching camera")
-                    yoloView.switchCamera()
-                    result.success(null)
                 }
                 "setShowUIControls" -> {
-                    // Android doesn't have UI controls like iOS, so we just acknowledge the call
-                    Log.d(TAG, "setShowUIControls called, but not applicable for Android")
-                    result.success(null)
                 }
                 "setZoomLevel" -> {
-                    val zoomLevel = call.argument<Double>("zoomLevel")
-                    if (zoomLevel != null) {
-                        Log.d(TAG, "Setting zoom level to $zoomLevel")
-                        yoloView.setZoomLevel(zoomLevel.toFloat())
-                        result.success(null)
-                    } else {
-                        result.error("invalid_args", "Zoom level is required", null)
-                    }
                 }
                 "setStreamingConfig" -> {
                     Log.d(TAG, "Received setStreamingConfig call")
@@ -227,15 +178,6 @@ class YOLOPlatformView(
                     }
                 }
                 "captureFrame" -> {
-                    Log.d(TAG, "Received captureFrame call")
-                    val imageData = yoloView.captureFrame()
-                    if (imageData != null) {
-                        Log.d(TAG, "Frame captured successfully: ${imageData.size} bytes")
-                        result.success(imageData)
-                    } else {
-                        Log.e(TAG, "Failed to capture frame")
-                        result.error("capture_failed", "Failed to capture frame from camera", null)
-                    }
                 }
                 "listen" -> {
                     Log.d(TAG, "EventChannel listen method called")

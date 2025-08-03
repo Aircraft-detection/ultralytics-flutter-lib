@@ -99,11 +99,6 @@ class CustomStreamHandler(private val viewId: Int) : EventChannel.StreamHandler 
         }
     }
     
-    // Method to check if sink is valid
-    fun isSinkValid(): Boolean {
-        return sink != null
-    }
-    
     // Method to safely send a message
     fun safelySend(data: Map<String, Any>): Boolean {
         if (sink == null) return false

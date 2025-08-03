@@ -20,9 +20,6 @@ interface Predictor {
     
     abstract fun setIouThreshold(iou: Double)
     abstract fun setConfidenceThreshold(conf: Double)
-    abstract fun setNumItemsThreshold(progress: Int)
-    abstract fun getConfidenceThreshold(): Double
-    abstract fun getIouThreshold(): Double
 
     var labels: List<String>
     var isUpdating: Boolean
@@ -44,8 +41,6 @@ abstract class BasePredictor : Predictor {
 
     var CONFIDENCE_THRESHOLD:Float = 0.25f
     var IOU_THRESHOLD:Float = 0.4f
-    var transformationMatrix: Matrix? = null
-    var pendingBitmapFrame: Bitmap? = null
     var isFrontCamera: Boolean = false
 
     protected fun updateTiming() {
@@ -61,17 +56,5 @@ abstract class BasePredictor : Predictor {
 
     override fun setConfidenceThreshold(conf: Double) {
         CONFIDENCE_THRESHOLD = conf.toFloat()
-    }
-
-    override fun setNumItemsThreshold(progress: Int) {
-
-    }
-    
-    override fun getConfidenceThreshold(): Double {
-        return CONFIDENCE_THRESHOLD.toDouble()
-    }
-    
-    override fun getIouThreshold(): Double {
-        return IOU_THRESHOLD.toDouble()
     }
 }

@@ -260,46 +260,6 @@ class YOLOView @JvmOverloads constructor(
         overlayView.translationZ = 100f
         previewContainer.elevation = 1f
 
-        // Add zoom label
-        zoomLabel = TextView(context).apply {
-            layoutParams = LayoutParams(
-                LayoutParams.WRAP_CONTENT,
-                LayoutParams.WRAP_CONTENT
-            ).apply {
-                gravity = Gravity.CENTER
-            }
-            text = "1.0x"
-            textSize = 24f
-            setTextColor(Color.WHITE)
-            setBackgroundColor(Color.argb(128, 0, 0, 0))
-            setPadding(16, 8, 16, 8)
-            visibility = View.GONE
-        }
-        addView(zoomLabel)
-
-        // Initialize scale gesture detector for pinch-to-zoom
-        scaleGestureDetector =
-            ScaleGestureDetector(context, object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-                override fun onScale(detector: ScaleGestureDetector): Boolean {
-                    val scale = detector.scaleFactor
-                    val newZoomRatio = currentZoomRatio * scale
-
-                    // Clamp zoom ratio between min and max
-                    val clampedZoomRatio = newZoomRatio.coerceIn(
-                        minZoomRatio,
-                        camera?.cameraInfo?.zoomState?.value?.maxZoomRatio ?: maxZoomRatio
-                    )
-
-                    camera?.cameraControl?.setZoomRatio(clampedZoomRatio)
-                    currentZoomRatio = clampedZoomRatio
-
-                    // Notify zoom change
-                    onZoomChanged?.invoke(currentZoomRatio)
-
-                    return true
-                }
-            })
-
         Log.d(TAG, "YoloView init: forced TextureView usage for camera preview + overlay on top.")
     }
 
@@ -315,36 +275,12 @@ class YOLOView @JvmOverloads constructor(
         (predictor as? ObjectDetector)?.setIouThreshold(iou)
     }
 
-    fun setNumItemsThreshold(n: Int) {
-        numItemsThreshold = n
-        (predictor as? ObjectDetector)?.setNumItemsThreshold(n)
-    }
-
-    fun setZoomLevel(zoomLevel: Float) {
-        camera?.let { cam: Camera ->
-            // Clamp zoom level between min and max
-            val clampedZoomRatio =
-                zoomLevel.coerceIn(minZoomRatio, cam.cameraInfo.zoomState.value?.maxZoomRatio ?: maxZoomRatio)
-
-            cam.cameraControl.setZoomRatio(clampedZoomRatio)
-            currentZoomRatio = clampedZoomRatio
-
-            // Notify zoom change
-            onZoomChanged?.invoke(currentZoomRatio)
-        }
-    }
-
-    // endregion
-
-    // region Model / Task
-
     fun setModel(modelPath: String, callback: ((Boolean) -> Unit)? = null) {
         Executors.newSingleThreadExecutor().execute {
             try {
                 val newPredictor = ObjectDetector(context, modelPath, loadLabels(), useGpu = true).apply {
                     setConfidenceThreshold(confidenceThreshold)
                     setIouThreshold(iouThreshold)
-                    setNumItemsThreshold(numItemsThreshold)
                 }
 
 
@@ -793,50 +729,6 @@ class YOLOView @JvmOverloads constructor(
             }
 
         }
-
-        override fun onTouchEvent(event: MotionEvent?): Boolean {
-            // Pass through all touch events
-            return false
-        }
-    }
-
-    // Scale listener for pinch-to-zoom
-    private inner class ScaleListener : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-        override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-            // Show zoom label when pinch starts
-            zoomLabel.visibility = View.VISIBLE
-            return true
-        }
-
-        override fun onScale(detector: ScaleGestureDetector): Boolean {
-            val scaleFactor = detector.scaleFactor
-            val newZoomRatio = currentZoomRatio * scaleFactor
-
-            // Clamp zoom within min/max bounds
-            val clampedZoom = newZoomRatio.coerceIn(minZoomRatio, maxZoomRatio)
-
-            // Apply zoom to camera
-            camera?.cameraControl?.setZoomRatio(clampedZoom)
-            currentZoomRatio = clampedZoom
-
-            // Update zoom label
-            zoomLabel.text = String.format("%.1fx", currentZoomRatio)
-
-            return true
-        }
-
-        override fun onScaleEnd(detector: ScaleGestureDetector) {
-            // Hide zoom label after 2 seconds
-            zoomLabel.postDelayed({
-                zoomLabel.visibility = View.GONE
-            }, 2000)
-        }
-    }
-
-    // Touch event handling for pinch-to-zoom
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-        scaleGestureDetector.onTouchEvent(event)
-        return true
     }
 
     // region Streaming functionality
