@@ -31,6 +31,7 @@ import android.view.Gravity
 import java.util.concurrent.ExecutorService
 import java.util.concurrent.TimeUnit
 import android.content.res.Configuration
+import android.util.Size
 
 class YOLOView @JvmOverloads constructor(
     context: Context,
@@ -449,12 +450,13 @@ class YOLOView @JvmOverloads constructor(
                     Log.d(TAG, "Camera provider obtained")
 
                     previewUseCase = Preview.Builder()
-                        .setTargetAspectRatio(AspectRatio.RATIO_4_3)
+                        .setTargetAspectRatio(AspectRatio.RATIO_16_9)
                         .build()
 
                     imageAnalysisUseCase = ImageAnalysis.Builder()
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                        .setTargetAspectRatio(AspectRatio.RATIO_4_3)
+//                        .setTargetResolution(Size(1080, 1920))
+                        .setTargetResolution(Size(360, 640))
                         .build()
 
                     cameraExecutor = Executors.newSingleThreadExecutor()
@@ -599,7 +601,8 @@ class YOLOView @JvmOverloads constructor(
                         updateLastInferenceTime()
                         
                         // Convert to stream data and send
-                        val streamData = convertResultToStreamData(resultWithOriginalImage)
+                        // modified: add width, height, and orientation
+                        val streamData = convertResultToStreamData(resultWithOriginalImage, w, h, isLandscape)
                         // Add timestamp and frame info
                         val enhancedStreamData = HashMap<String, Any>(streamData)
                         enhancedStreamData["timestamp"] = System.currentTimeMillis()
@@ -650,6 +653,10 @@ class YOLOView @JvmOverloads constructor(
 
         override fun onDraw(canvas: Canvas) {
             super.onDraw(canvas)
+
+            // modified: disable drawing detections
+            return
+
             val result = inferenceResult ?: return
             
 
@@ -1380,9 +1387,10 @@ class YOLOView @JvmOverloads constructor(
      * Convert YOLOResult to a Map for streaming (ported from archived YOLOPlatformView)
      * Uses detection index correctly to avoid class index confusion
      */
-    private fun convertResultToStreamData(result: YOLOResult): Map<String, Any> {
+    private fun convertResultToStreamData(result: YOLOResult, w: Int, h: Int, isLandscape: Boolean): Map<String, Any> {
         val map = HashMap<String, Any>()
         val config = streamConfig ?: return emptyMap()
+        
         
         // Convert detection results (if enabled)
         if (config.includeDetections) {
@@ -1391,6 +1399,12 @@ class YOLOView @JvmOverloads constructor(
             // Convert detection boxes - CRITICAL: use detectionIndex, not class index
             for ((detectionIndex, box) in result.boxes.withIndex()) {
                 val detection = HashMap<String, Any>()
+                
+                // modified: add width, height, and orientation
+                detection["w"] = w
+                detection["h"] = h
+                detection["isLandscape"] = isLandscape
+                
                 detection["classIndex"] = box.index
                 detection["className"] = box.cls
                 detection["confidence"] = box.conf.toDouble()

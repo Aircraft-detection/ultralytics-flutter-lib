@@ -22,6 +22,12 @@ import 'dart:ui';
 /// );
 /// ```
 class YOLOResult {
+  
+  // modified: add width, height, and landscape
+  final int w;
+  final int h;
+  final bool isLandscape;
+  
   /// The index of the detected class in the model's class list.
   ///
   /// This corresponds to the position of the class in the model's
@@ -74,6 +80,10 @@ class YOLOResult {
   final List<double>? keypointConfidences;
 
   YOLOResult({
+    // modified: add width, height, and landscape
+    required this.w,
+    required this.h,
+    required this.isLandscape,
     required this.classIndex,
     required this.className,
     required this.confidence,
@@ -96,6 +106,11 @@ class YOLOResult {
   /// - 'mask': (optional) List of List of double
   /// - 'keypoints': (optional) List of double in x,y,confidence triplets
   factory YOLOResult.fromMap(Map<dynamic, dynamic> map) {
+    // modified: add width, height, and landscape
+    final w = (map['w'] as num).toInt();
+    final h = (map['h'] as num).toInt();
+    final isLandscape = map['isLandscape'] as bool;
+    
     final classIndex = map['classIndex'] as int;
     final className = map['className'] as String;
     final confidence = (map['confidence'] as num).toDouble();
@@ -151,6 +166,10 @@ class YOLOResult {
     }
 
     return YOLOResult(
+      // modified: add width, height, and landscape
+      w: w,
+      h: h,
+      isLandscape: isLandscape,
       classIndex: classIndex,
       className: className,
       confidence: confidence,
@@ -169,6 +188,11 @@ class YOLOResult {
   /// result in a format suitable for transmission across platform channels.
   Map<String, dynamic> toMap() {
     final map = <String, dynamic>{
+      // modified: add width, height, and landscape
+      'w': w,
+      'h': h,
+      'isLandscape': isLandscape,
+      
       'classIndex': classIndex,
       'className': className,
       'confidence': confidence,
