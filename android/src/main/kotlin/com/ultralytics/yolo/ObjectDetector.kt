@@ -334,7 +334,8 @@ class ObjectDetector(
             rawOutput[0],
             w = outWidth,   // width is out2
             h = outHeight,  // height is out1
-            confidenceThreshold = confidenceThreshold,
+            // modified: set confidence threshold 
+            confidenceThreshold = 0.35f,
             iouThreshold = iouThreshold,
             numItemsThreshold = numItemsThreshold,
             numClasses = labels.size
