@@ -89,34 +89,6 @@ class YOLOPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler
     viewFactory.dispose()
     // YOLO class doesn't need explicit release
   }
-  
-  /**
-   * Gets the absolute path to the app's internal storage directory
-   */
-  private fun getInternalStoragePath(): String {
-    return applicationContext.filesDir.absolutePath
-  }
-
-  /**
-   * Resolves a model path that might be relative to app's internal storage
-   * @param modelPath The model path from Flutter
-   * @return Resolved absolute path or original asset path
-   */
-  private fun resolveModelPath(modelPath: String): String {
-    // If it's already an absolute path, return it
-    if (YOLOUtils.isAbsolutePath(modelPath)) {
-      return modelPath
-    }
-    
-    // Check if it's a relative path to internal storage
-    if (modelPath.startsWith("internal://")) {
-      val relativePath = modelPath.substring("internal://".length)
-      return "${applicationContext.filesDir.absolutePath}/$relativePath"
-    }
-    
-    // Otherwise, consider it an asset path
-    return modelPath
-  }
 
   override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
 
@@ -153,15 +125,5 @@ class YOLOPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler
         Log.d(TAG, "onRequestPermissionsResult: No active YoloPlatformViews to notify.")
     }
     return handled // Return true if any view instance successfully processed it.
-  }
-  
-  // Helper function to load labels
-  private fun loadLabels(modelPath: String): List<String> {
-    // This is a placeholder - in a real implementation, you would load labels from metadata
-    return listOf(
-      "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat",
-      "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat",
-      "dog", "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack"
-    )
   }
 }

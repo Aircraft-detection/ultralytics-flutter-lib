@@ -65,9 +65,6 @@ class YOLOPlatformView(
         }
         
         try {
-            // Resolve model path (handling absolute paths, internal:// scheme, or asset paths)
-            modelPath = resolveModelPath(context, modelPath)
-            
             Log.d(TAG, "Initializing YOLOPlatformView with model: $modelPath, viewId: $viewId")
             
             // Set up callback for model loading result
@@ -104,61 +101,6 @@ class YOLOPlatformView(
     
     // Handle method calls from Flutter
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
-        try {
-            Log.d(TAG, "Received method call: ${call.method} with arguments: ${call.arguments}")
-            
-            when (call.method) {
-                "stop" -> {
-                    Log.d(TAG, "Received manual stop call from Flutter")
-                    try {
-                        yoloView.stop()
-                        Log.d(TAG, "YOLOView stopped successfully via method call")
-                        result.success(null)
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Error stopping YOLOView via method call", e)
-                        result.error("stop_error", "Error stopping YOLOView: ${e.message}", null)
-                    }
-                }
-                "setModel" -> {
-                    val modelPath = call.argument<String>("modelPath")
-                    val taskString = call.argument<String>("task")
-                    
-                    if (modelPath == null || taskString == null) {
-                        result.error("invalid_args", "modelPath and task are required", null)
-                        return
-                    }
-                    
-                    Log.d(TAG, "Received setModel call with modelPath: $modelPath")
-                    
-                    yoloView.setModel(modelPath) { success ->
-                        if (success) {
-                            Log.d(TAG, "Model switched successfully")
-                            result.success(null)
-                        } else {
-                            Log.e(TAG, "Failed to switch model")
-                            result.error("MODEL_NOT_FOUND", "Failed to load model: $modelPath", null)
-                        }
-                    }
-                }
-                "listen" -> {
-                    Log.d(TAG, "EventChannel listen method called")
-                    // Called when EventChannel starts the stream
-                    result.success(null)
-                }
-                "cancel" -> {
-                    Log.d(TAG, "EventChannel cancel method called")
-                    // Called when EventChannel cancels the stream
-                    result.success(null)
-                }
-                else -> {
-                    Log.w(TAG, "Method not implemented: ${call.method}")
-                    result.notImplemented()
-                }
-            }
-        } catch (e: Exception) {
-            Log.e(TAG, "Error handling method call: ${call.method}", e)
-            result.error("method_call_error", "Error handling method call: ${e.message}", null)
-        }
     }
     
     /**
@@ -271,46 +213,13 @@ class YOLOPlatformView(
         yoloView.onLifecycleOwnerAvailable(owner)
     }
         
-        // Called by YOLOPlugin to delegate permission results
-        fun passRequestPermissionsResult(
-            requestCode: Int,
-            permissions: Array<String>, 
-            grantResults: IntArray
-        ) {
-            Log.d(TAG, "passRequestPermissionsResult called in YOLOPlatformView for viewId $viewId, delegating to yoloView")
-            yoloView.onRequestPermissionsResult(requestCode, permissions, grantResults)
-        }
-        
-        /**
-         * Sets a new model on the YoloView
-         * @param modelPath Path to the new model
-         * @param task The YOLO task type
-         * @param callback Callback to report success/failure
-         */
-        fun setModel(modelPath: String, callback: ((Boolean) -> Unit)? = null) {
-            Log.d(TAG, "setModel called for viewId $viewId with model: $modelPath")
-            yoloView.setModel(modelPath, callback)
-        }
-    
-    /**
-     * Resolves a model path that might be relative to app's internal storage
-     * @param context Application context
-     * @param modelPath The model path from Flutter
-     * @return Resolved absolute path or original asset path
-     */
-    private fun resolveModelPath(context: Context, modelPath: String): String {
-        // If it's already an absolute path, return it
-        if (YOLOUtils.isAbsolutePath(modelPath)) {
-            return modelPath
-        }
-        
-        // Check if it's a relative path to internal storage
-        if (modelPath.startsWith("internal://")) {
-            val relativePath = modelPath.substring("internal://".length)
-            return "${context.filesDir.absolutePath}/$relativePath"
-        }
-        
-        // Otherwise, consider it an asset path
-        return modelPath
+    // Called by YOLOPlugin to delegate permission results
+    fun passRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<String>, 
+        grantResults: IntArray
+    ) {
+        Log.d(TAG, "passRequestPermissionsResult called in YOLOPlatformView for viewId $viewId, delegating to yoloView")
+        yoloView.onRequestPermissionsResult(requestCode, permissions, grantResults)
     }
 }

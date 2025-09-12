@@ -527,10 +527,6 @@ class YOLOView @JvmOverloads constructor(
         imageProxy.close()
     }
 
-    // endregion
-
-    // region OverlayView
-
     private inner class OverlayView(context: Context) : View(context) {
         private val paint = Paint().apply { isAntiAlias = true }
 
