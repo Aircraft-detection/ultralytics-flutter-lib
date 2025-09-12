@@ -1018,135 +1018,13 @@ class YOLOView @JvmOverloads constructor(
                 normalizedBox["bottom"] = box.xywhn.bottom.toDouble()
                 detection["normalizedBox"] = normalizedBox
 
-                // Add mask data for segmentation (if available and enabled)
-                if (config.includeMasks && result.masks != null && detectionIndex < result.masks!!.masks.size) {
-                    val maskData = result.masks!!.masks[detectionIndex] // Get mask for this detection
-                    // Convert List<List<Float>> to List<List<Double>> for Flutter compatibility
-                    val maskDataDouble = maskData.map { row ->
-                        row.map { it.toDouble() }
-                    }
-                    detection["mask"] = maskDataDouble
-                    Log.d(
-                        TAG,
-                        "✅ Added mask data (${maskData.size}x${maskData.firstOrNull()?.size ?: 0}) for detection $detectionIndex"
-                    )
-                }
-
-                // Add pose keypoints (if available and enabled)
-                if (config.includePoses && detectionIndex < result.keypointsList.size) {
-                    val keypoints = result.keypointsList[detectionIndex]
-                    // Convert to flat array [x1, y1, conf1, x2, y2, conf2, ...]
-                    val keypointsFlat = mutableListOf<Double>()
-                    for (i in keypoints.xy.indices) {
-                        keypointsFlat.add(keypoints.xy[i].first.toDouble())
-                        keypointsFlat.add(keypoints.xy[i].second.toDouble())
-                        if (i < keypoints.conf.size) {
-                            keypointsFlat.add(keypoints.conf[i].toDouble())
-                        } else {
-                            keypointsFlat.add(0.0) // Default confidence if missing
-                        }
-                    }
-                    detection["keypoints"] = keypointsFlat
-                    Log.d(TAG, "Added keypoints data (${keypoints.xy.size} points) for detection $detectionIndex")
-                }
-
-                detections.add(detection)
-            }
-
-            // Handle OBB results directly (same pattern as overlay: for obbRes in result.obb)
-            for (obbRes in result.obb) {
-                val detection = HashMap<String, Any>()
-                detection["classIndex"] = obbRes.index
-                detection["className"] = obbRes.cls
-                detection["confidence"] = obbRes.confidence.toDouble()
-
-                // Get OBB polygon points (4 corners of rotated rectangle)
-                val polygon = obbRes.box.toPolygon()
-                val imgWidth = result.origShape.width.toFloat()
-                val imgHeight = result.origShape.height.toFloat()
-
-                // Convert polygon points to pixel coordinates  
-                val polygonPixels = polygon.map { point ->
-                    mapOf(
-                        "x" to (point.x * imgWidth).toDouble(),
-                        "y" to (point.y * imgHeight).toDouble()
-                    )
-                }
-
-                // Store polygon points directly for precise OBB cropping
-                detection["polygon"] = polygonPixels
-
-                // Also calculate AABB as fallback for compatibility (but Flutter should use polygon)
-                var minX = Float.MAX_VALUE
-                var maxX = Float.MIN_VALUE
-                var minY = Float.MAX_VALUE
-                var maxY = Float.MIN_VALUE
-
-                for (point in polygon) {
-                    if (point.x < minX) minX = point.x
-                    if (point.x > maxX) maxX = point.x
-                    if (point.y < minY) minY = point.y
-                    if (point.y > maxY) maxY = point.y
-                }
-
-                // Fallback bounding box (enlarged) - only use if polygon cropping fails
-                val boundingBox = HashMap<String, Any>()
-                boundingBox["left"] = (minX * imgWidth).toDouble()
-                boundingBox["top"] = (minY * imgHeight).toDouble()
-                boundingBox["right"] = (maxX * imgWidth).toDouble()
-                boundingBox["bottom"] = (maxY * imgHeight).toDouble()
-                detection["boundingBox"] = boundingBox
-
-                // Normalized bounding box (0-1) - fallback
-                val normalizedBox = HashMap<String, Any>()
-                normalizedBox["left"] = minX.toDouble()
-                normalizedBox["top"] = minY.toDouble()
-                normalizedBox["right"] = maxX.toDouble()
-                normalizedBox["bottom"] = maxY.toDouble()
-                detection["normalizedBox"] = normalizedBox
-
-                // Add OBB-specific data
-                if (config.includeOBB) {
-                    val points = polygon.map { point ->
-                        mapOf(
-                            "x" to point.x.toDouble(),
-                            "y" to point.y.toDouble()
-                        )
-                    }
-
-                    val obbDataMap = mapOf(
-                        "centerX" to obbRes.box.cx.toDouble(),
-                        "centerY" to obbRes.box.cy.toDouble(),
-                        "width" to obbRes.box.w.toDouble(),
-                        "height" to obbRes.box.h.toDouble(),
-                        "angle" to obbRes.box.angle.toDouble(),
-                        "angleDegrees" to (obbRes.box.angle * 180.0 / Math.PI),
-                        "area" to obbRes.box.area.toDouble(),
-                        "points" to points,
-                        "confidence" to obbRes.confidence.toDouble(),
-                        "className" to obbRes.cls,
-                        "classIndex" to obbRes.index
-                    )
-
-                    detection["obb"] = obbDataMap
-                    Log.d(
-                        TAG,
-                        "✅ Added OBB data: ${obbRes.cls} (${
-                            String.format(
-                                "%.1f",
-                                obbRes.box.angle * 180.0 / Math.PI
-                            )
-                        }° rotation)"
-                    )
-                }
-
                 detections.add(detection)
             }
 
             map["detections"] = detections
             Log.d(
                 TAG,
-                "✅ Total detections in stream: ${detections.size} (boxes: ${result.boxes.size}, obb: ${result.obb.size})"
+                "✅ Total detections in stream: ${detections.size} (boxes: ${result.boxes.size})"
             )
         }
 
