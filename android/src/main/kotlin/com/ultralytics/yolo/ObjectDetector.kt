@@ -40,7 +40,18 @@ import java.util.zip.ZipInputStream
 class ObjectDetector(
     context: Context,
     modelPath: String,
-    var labels: List<String>,
+    var labels: List<String> = listOf(
+        "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat",
+        "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog",
+        "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella",
+        "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball", "kite",
+        "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket", "bottle",
+        "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple", "sandwich",
+        "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch",
+        "potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse", "remote",
+        "keyboard", "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator", "book",
+        "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"
+    ),
     private val useGpu: Boolean = true,
     private val customOptions: Interpreter.Options? = null
 ) {
@@ -122,35 +133,7 @@ class ObjectDetector(
     // Use protected var interpreter: Interpreter? = null from BasePredictor if available
     // Otherwise, keep it in this class as usual
     init {
-        val assetManager = context.assets
         val modelBuffer  = YOLOUtils.loadModelFile(context, modelPath)
-
-        /* --- Get labels from metadata (try Appended ZIP → FlatBuffers in order) --- */
-        var loadedLabels = YOLOFileUtils.loadLabelsFromAppendedZip(context, modelPath)
-        var labelsWereLoaded = loadedLabels != null
-
-        if (labelsWereLoaded) {
-            this.labels = loadedLabels!! // Use labels from appended ZIP
-            Log.i(TAG, "Labels successfully loaded from appended ZIP.")
-        } else {
-            Log.w(TAG, "Could not load labels from appended ZIP, trying FlatBuffers metadata...")
-            // Try FlatBuffers as a fallback
-            if (loadLabelsFromFlatbuffers(modelBuffer)) {
-                labelsWereLoaded = true
-                Log.i(TAG, "Labels successfully loaded from FlatBuffers metadata.")
-            }
-        }
-
-        if (!labelsWereLoaded) {
-            Log.w(TAG, "No embedded labels found from appended ZIP or FlatBuffers. Using labels passed via constructor (if any) or an empty list.")
-            // If labels were passed via constructor and not overridden, they will be used.
-            // If no labels were passed and none loaded, this.labels will be what was passed or an uninitialized/empty list
-            // depending on how the 'labels' property was handled if it was nullable or had a default.
-            // Given 'override var labels: List<String>' is passed in constructor, it will hold the passed value.
-            if (this.labels.isEmpty()) {
-                 Log.w(TAG, "Warning: No labels loaded and no labels provided via constructor. Detections might lack class names.")
-            }
-        }
 
         interpreter = Interpreter(modelBuffer, interpreterOptions)
         // Call allocateTensors() once during initialization, not in the inference loop
@@ -222,50 +205,6 @@ class ObjectDetector(
     /* =================================================================== */
     /*                 metadata helper functions (Kotlin)                 */
     /* =================================================================== */
-
-    // Old ZIP loading methods (readWholeModel, findPKHeader, loadLabelsFromEmbeddedZip)
-    // have been removed as their functionality is replaced by YOLOFileUtils.loadLabelsFromAppendedZip
-
-    /**
-     * ────────────────────────────────────────────────────────────────
-     *  Load labels from FlatBuffers (metadata.yaml) - based on old code
-     *  - Scan all associatedFileNames
-     *  - Parse YAML as Map<Int,String>
-     *  - Use values directly as List and assign to labels
-     * ────────────────────────────────────────────────────────────────
-     */
-    private fun loadLabelsFromFlatbuffers(buf: MappedByteBuffer): Boolean = try {
-        val extractor = MetadataExtractor(buf)
-        val files = extractor.associatedFileNames
-        if (!files.isNullOrEmpty()) {
-            for (fileName in files) {
-                Log.d(TAG, "Found associated file: $fileName")
-                extractor.getAssociatedFile(fileName)?.use { stream ->
-                    val fileString = String(stream.readBytes(), Charsets.UTF_8)
-                    Log.d(TAG, "Associated file contents:\n$fileString")
-
-                    val yaml = Yaml()
-                    @Suppress("UNCHECKED_CAST")
-                    val data = yaml.load<Map<String, Any>>(fileString)
-                    if (data != null && data.containsKey("names")) {
-                        val namesMap = data["names"] as? Map<Int, String>
-                        if (namesMap != null) {
-                            labels = namesMap.values.toList()          // Same as old code
-                            Log.d(TAG, "Loaded labels from metadata: $labels")
-                            return true
-                        }
-                    }
-                }
-            }
-        } else {
-            Log.d(TAG, "No associated files found in the metadata.")
-        }
-        false
-    } catch (e: Exception) {
-        Log.e(TAG, "Failed to extract metadata: ${e.message}")
-        false
-    }
-
 
     private fun initPreprocessingResources(width: Int, height: Int) {
         // ARGB_8888 Bitmap for input size (e.g., 320x320)

@@ -291,7 +291,7 @@ class YOLOView @JvmOverloads constructor(
     fun setModel(modelPath: String, callback: ((Boolean) -> Unit)? = null) {
         Executors.newSingleThreadExecutor().execute {
             try {
-                val newPredictor = ObjectDetector(context, modelPath, loadLabels(modelPath), useGpu = true)
+                val newPredictor = ObjectDetector(context, modelPath, useGpu = true)
                 
                 post {
                     this.detector = newPredictor
@@ -311,31 +311,6 @@ class YOLOView @JvmOverloads constructor(
                 }
             }
         }
-    }
-
-    private fun loadLabels(modelPath: String): List<String> {
-        // Try to load labels from model metadata first
-        val loadedLabels = YOLOFileUtils.loadLabelsFromAppendedZip(context, modelPath)
-        if (loadedLabels != null) {
-            Log.d(TAG, "Labels loaded from model metadata: ${loadedLabels.size} classes")
-            return loadedLabels
-        }
-
-        // Return COCO dataset's 80 classes as a fallback
-        // This is much more complete than the previous 7-class hardcoded list
-        Log.d(TAG, "Using COCO classes as fallback")
-        return listOf(
-            "person", "bicycle", "car", "motorcycle", "airplane", "bus", "train", "truck", "boat",
-            "traffic light", "fire hydrant", "stop sign", "parking meter", "bench", "bird", "cat", "dog",
-            "horse", "sheep", "cow", "elephant", "bear", "zebra", "giraffe", "backpack", "umbrella",
-            "handbag", "tie", "suitcase", "frisbee", "skis", "snowboard", "sports ball", "kite",
-            "baseball bat", "baseball glove", "skateboard", "surfboard", "tennis racket", "bottle",
-            "wine glass", "cup", "fork", "knife", "spoon", "bowl", "banana", "apple", "sandwich",
-            "orange", "broccoli", "carrot", "hot dog", "pizza", "donut", "cake", "chair", "couch",
-            "potted plant", "bed", "dining table", "toilet", "tv", "laptop", "mouse", "remote",
-            "keyboard", "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator", "book",
-            "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"
-        )
     }
 
     // endregion
@@ -467,17 +442,6 @@ class YOLOView @JvmOverloads constructor(
             Log.e(TAG, "Error starting camera", e)
         }
     }
-
-    fun switchCamera() {
-        lensFacing = if (lensFacing == CameraSelector.LENS_FACING_BACK) {
-            CameraSelector.LENS_FACING_FRONT
-        } else {
-            CameraSelector.LENS_FACING_BACK
-        }
-        startCamera()
-    }
-
-    // endregion
 
     // Lifecycle methods from DefaultLifecycleObserver
     override fun onStart(owner: LifecycleOwner) {
