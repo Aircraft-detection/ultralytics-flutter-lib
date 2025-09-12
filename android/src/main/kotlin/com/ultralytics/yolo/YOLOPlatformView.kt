@@ -77,10 +77,7 @@ class YOLOPlatformView(
             // Resolve model path (handling absolute paths, internal:// scheme, or asset paths)
             modelPath = resolveModelPath(context, modelPath)
             
-            // Convert task string to enum
-            val task = YOLOTask.valueOf(taskString.uppercase())
-            
-            Log.d(TAG, "Initializing YOLOPlatformView with model: $modelPath, task: $task, viewId: $viewId")
+            Log.d(TAG, "Initializing YOLOPlatformView with model: $modelPath, viewId: $viewId")
             
             // Set up callback for model loading result
             yoloView.setOnModelLoadCallback { success ->
@@ -102,7 +99,7 @@ class YOLOPlatformView(
             }
             
             // Load model with the specified path and task
-            yoloView.setModel(modelPath, task)
+            yoloView.setModel(modelPath)
             
             // Setup zoom callback
             yoloView.onZoomChanged = { zoomLevel ->
@@ -225,10 +222,9 @@ class YOLOPlatformView(
                         return
                     }
                     
-                    val task = YOLOTask.valueOf(taskString.uppercase())
-                    Log.d(TAG, "Received setModel call with modelPath: $modelPath, task: $task")
+                    Log.d(TAG, "Received setModel call with modelPath: $modelPath")
                     
-                    yoloView.setModel(modelPath, task) { success ->
+                    yoloView.setModel(modelPath) { success ->
                         if (success) {
                             Log.d(TAG, "Model switched successfully")
                             result.success(null)
@@ -446,9 +442,9 @@ class YOLOPlatformView(
          * @param task The YOLO task type
          * @param callback Callback to report success/failure
          */
-        fun setModel(modelPath: String, task: YOLOTask, callback: ((Boolean) -> Unit)? = null) {
-            Log.d(TAG, "setModel called for viewId $viewId with model: $modelPath, task: $task")
-            yoloView.setModel(modelPath, task, callback)
+        fun setModel(modelPath: String, callback: ((Boolean) -> Unit)? = null) {
+            Log.d(TAG, "setModel called for viewId $viewId with model: $modelPath")
+            yoloView.setModel(modelPath, callback)
         }
     
     /**

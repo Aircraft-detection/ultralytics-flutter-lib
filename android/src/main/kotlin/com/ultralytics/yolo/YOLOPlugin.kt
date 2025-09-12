@@ -157,9 +157,6 @@ class YOLOPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler
           // Resolve the model path (handling absolute paths, internal:// scheme, or asset paths)
           modelPath = resolveModelPath(modelPath)
           
-          // Convert task string to enum
-          val task = YOLOTask.valueOf(taskString.uppercase())
-          
           // Use classifier options map directly (follows existing pattern)
           val classifierOptions = classifierOptionsMap
           
@@ -176,11 +173,10 @@ class YOLOPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler
             instanceId = instanceId,
             context = applicationContext,
             modelPath = modelPath,
-            task = task,
             classifierOptions = classifierOptions
           ) { loadResult ->
             if (loadResult.isSuccess) {
-              Log.d(TAG, "Model loaded successfully: $modelPath for task: $task, instance: $instanceId ${if (classifierOptions != null) "with classifier options" else ""}")
+              Log.d(TAG, "Model loaded successfully: $modelPath, instance: $instanceId ${if (classifierOptions != null) "with classifier options" else ""}")
               result.success(true)
             } else {
               Log.e(TAG, "Failed to load model for instance $instanceId", loadResult.exceptionOrNull())
@@ -259,98 +255,6 @@ class YOLOPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler
           // Get instance to check task type
           val yolo = YOLOInstanceManager.shared.getInstance(instanceId)
           
-          // Add task-specific data to response
-          when (yolo?.task) {
-            YOLOTask.SEGMENT -> {
-              // Include raw segmentation masks if available
-              yoloResult.masks?.let { masks ->
-                // Send raw mask data for each detected instance
-                val rawMasks = mutableListOf<List<List<Double>>>()
-                for (instanceMask in masks.masks) {
-                  val mask2D = mutableListOf<List<Double>>()
-                  for (row in instanceMask) {
-                    mask2D.add(row.map { it.toDouble() })
-                  }
-                  rawMasks.add(mask2D)
-                }
-                response["masks"] = rawMasks
-                
-                // Also send PNG for backward compatibility (optional)
-                masks.combinedMask?.let { combinedMask ->
-                  val stream = ByteArrayOutputStream()
-                  combinedMask.compress(Bitmap.CompressFormat.PNG, 90, stream)
-                  response["maskPng"] = stream.toByteArray()
-                }
-              }
-            }
-            YOLOTask.CLASSIFY -> {
-              Log.d(TAG, "Processing CLASSIFY task result")
-              // Include classification results if available
-              yoloResult.probs?.let { probs ->
-                Log.d(TAG, "Found probs: top1=${probs.top1}, top1Conf=${probs.top1Conf}, top1Index=${probs.top1Index}")
-                
-                // Use the original labels from the model (no hardcoded mapping)
-                val topClass = probs.top1
-                val top5Classes = probs.top5
-                
-                response["classification"] = mapOf(
-                  "topClass" to topClass,
-                  "topConfidence" to probs.top1Conf.toDouble(),
-                  "top5Classes" to top5Classes,
-                  "top5Confidences" to probs.top5Confs.map { it.toDouble() },
-                  "top1Index" to probs.top1Index
-                )
-                
-                // Also add classification data to the boxes array for compatibility
-                response["boxes"] = listOf(
-                  mapOf(
-                    "class" to topClass,
-                    "className" to topClass,
-                    "confidence" to probs.top1Conf.toDouble(),
-                    "classIndex" to probs.top1Index,
-                    "x1" to 0.0,
-                    "y1" to 0.0,
-                    "x2" to imageWidth.toDouble(),
-                    "y2" to imageHeight.toDouble(),
-                    "x1_norm" to 0.0,
-                    "y1_norm" to 0.0,
-                    "x2_norm" to 1.0,
-                    "y2_norm" to 1.0
-                  )
-                )
-                Log.d(TAG, "Added classification data to response")
-              } ?: run {
-                Log.w(TAG, "YOLOResult.probs is null for CLASSIFY task")
-              }
-            }
-            YOLOTask.POSE -> {
-              // Include pose keypoints if available
-              if (yoloResult.keypointsList.isNotEmpty()) {
-                response["keypoints"] = yoloResult.keypointsList.map { keypoints ->
-                  mapOf(
-                    "coordinates" to keypoints.xyn.mapIndexed { i, (x, y) ->
-                      mapOf("x" to x, "y" to y, "confidence" to keypoints.conf[i])
-                    }
-                  )
-                }
-              }
-            }
-            YOLOTask.OBB -> {
-              // Include oriented bounding boxes if available
-              if (yoloResult.obb.isNotEmpty()) {
-                response["obb"] = yoloResult.obb.map { obb ->
-                  val poly = obb.box.toPolygon()
-                  mapOf(
-                    "points" to poly.map { mapOf("x" to it.x, "y" to it.y) },
-                    "class" to obb.cls,
-                    "confidence" to obb.confidence
-                  )
-                }
-              }
-            }
-            else -> {} // DETECT is handled by boxes
-          }
-          
           // Include annotated image in response
           yoloResult.annotatedImage?.let { annotated ->
             val stream = ByteArrayOutputStream()
@@ -414,11 +318,8 @@ class YOLOPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler
             // Resolve the model path
             val resolvedPath = resolveModelPath(modelPath)
             
-            // Convert task string to enum
-            val task = YOLOTask.valueOf(taskString.uppercase())
-            
             // Call setModel on the YoloView
-            yoloView.setModel(resolvedPath, task) { success ->
+            yoloView.setModel(resolvedPath) { success ->
               if (success) {
                 result.success(null)
               } else {

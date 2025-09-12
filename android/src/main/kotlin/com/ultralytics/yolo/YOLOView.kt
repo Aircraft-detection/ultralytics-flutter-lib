@@ -201,7 +201,6 @@ class YOLOView @JvmOverloads constructor(
 
     private var inferenceResult: YOLOResult? = null
     private var predictor: Predictor? = null
-    private var task: YOLOTask = YOLOTask.DETECT
     private var modelName: String = "Model"
 
     // Camera config
@@ -340,24 +339,16 @@ class YOLOView @JvmOverloads constructor(
 
     // region Model / Task
 
-    fun setModel(modelPath: String, task: YOLOTask, callback: ((Boolean) -> Unit)? = null) {
+    fun setModel(modelPath: String, callback: ((Boolean) -> Unit)? = null) {
         Executors.newSingleThreadExecutor().execute {
             try {
-                val newPredictor = when (task) {
-                    YOLOTask.DETECT -> ObjectDetector(context, modelPath, loadLabels(modelPath), useGpu = true).apply {
-                        setConfidenceThreshold(confidenceThreshold)
-                        setIouThreshold(iouThreshold)
-                        setNumItemsThreshold(numItemsThreshold)
-                    }
-
-                    YOLOTask.SEGMENT -> Segmenter(context, modelPath, loadLabels(modelPath), useGpu = true)
-                    YOLOTask.CLASSIFY -> Classifier(context, modelPath, loadLabels(modelPath), useGpu = true)
-                    YOLOTask.POSE -> PoseEstimator(context, modelPath, loadLabels(modelPath), useGpu = true)
-                    YOLOTask.OBB -> ObbDetector(context, modelPath, loadLabels(modelPath), useGpu = true)
+                val newPredictor = ObjectDetector(context, modelPath, loadLabels(modelPath), useGpu = true).apply {
+                    setConfidenceThreshold(confidenceThreshold)
+                    setIouThreshold(iouThreshold)
+                    setNumItemsThreshold(numItemsThreshold)
                 }
-
+                
                 post {
-                    this.task = task
                     this.predictor = newPredictor
                     this.modelName = modelPath.substringAfterLast("/")
                     modelLoadCallback?.invoke(true)
@@ -469,8 +460,8 @@ class YOLOView @JvmOverloads constructor(
                     imageAnalysisUseCase = ImageAnalysis.Builder()
                         .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                         // modified: set resolution
-                        .setTargetResolution(Size(1080, 1920))
-//                        .setTargetResolution(Size(360, 640))
+//                        .setTargetResolution(Size(1080, 1920))
+                        .setTargetResolution(Size(360, 640))
                         .build()
 
                     cameraExecutor = Executors.newSingleThreadExecutor()
@@ -672,7 +663,7 @@ class YOLOView @JvmOverloads constructor(
             super.onDraw(canvas)
 
             // modified: disable drawing detections
-            return
+//            return
 
             val result = inferenceResult ?: return
 
@@ -702,545 +693,118 @@ class YOLOView @JvmOverloads constructor(
 
             // Check if using front camera
             val isFrontCamera = lensFacing == CameraSelector.LENS_FACING_FRONT
+            
+            Log.d(TAG, "Drawing DETECT boxes: ${result.boxes.size}")
 
+            // Debug first box coordinates
+            if (result.boxes.isNotEmpty()) {
+                val firstBox = result.boxes[0]
+                Log.d(TAG, "=== First Box Debug ===")
+                Log.d(
+                    TAG,
+                    "Box normalized coords: (${firstBox.xywhn.left}, ${firstBox.xywhn.top}, ${firstBox.xywhn.right}, ${firstBox.xywhn.bottom})"
+                )
+                Log.d(
+                    TAG,
+                    "Box pixel coords: (${firstBox.xywh.left}, ${firstBox.xywh.top}, ${firstBox.xywh.right}, ${firstBox.xywh.bottom})"
+                )
+            }
 
-            when (task) {
-                // ----------------------------------------
-                // DETECT
-                // ----------------------------------------
-                YOLOTask.DETECT -> {
-                    Log.d(TAG, "Drawing DETECT boxes: ${result.boxes.size}")
+            for (box in result.boxes) {
+                val alpha = (box.conf * 255).toInt().coerceIn(0, 255)
+                val baseColor = ultralyticsColors[box.index % ultralyticsColors.size]
+                val newColor = Color.argb(
+                    alpha,
+                    Color.red(baseColor),
+                    Color.green(baseColor),
+                    Color.blue(baseColor)
+                )
 
-                    // Debug first box coordinates
-                    if (result.boxes.isNotEmpty()) {
-                        val firstBox = result.boxes[0]
-                        Log.d(TAG, "=== First Box Debug ===")
-                        Log.d(
-                            TAG,
-                            "Box normalized coords: (${firstBox.xywhn.left}, ${firstBox.xywhn.top}, ${firstBox.xywhn.right}, ${firstBox.xywhn.bottom})"
-                        )
-                        Log.d(
-                            TAG,
-                            "Box pixel coords: (${firstBox.xywh.left}, ${firstBox.xywh.top}, ${firstBox.xywh.right}, ${firstBox.xywh.bottom})"
-                        )
-                    }
+                // Use same coordinate calculation for all orientations
+                // since the image is now correctly oriented before inference
+                var left = box.xywh.left * scale + dx
+                var top = box.xywh.top * scale + dy
+                var right = box.xywh.right * scale + dx
+                var bottom = box.xywh.bottom * scale + dy
 
-                    for (box in result.boxes) {
-                        val alpha = (box.conf * 255).toInt().coerceIn(0, 255)
-                        val baseColor = ultralyticsColors[box.index % ultralyticsColors.size]
-                        val newColor = Color.argb(
-                            alpha,
-                            Color.red(baseColor),
-                            Color.green(baseColor),
-                            Color.blue(baseColor)
-                        )
+                // Ensure coordinates are within view bounds and maintain aspect ratio
+                val boxWidth = right - left
+                val boxHeight = bottom - top
 
-                        // Use same coordinate calculation for all orientations
-                        // since the image is now correctly oriented before inference
-                        var left = box.xywh.left * scale + dx
-                        var top = box.xywh.top * scale + dy
-                        var right = box.xywh.right * scale + dx
-                        var bottom = box.xywh.bottom * scale + dy
-
-                        // Ensure coordinates are within view bounds and maintain aspect ratio
-                        val boxWidth = right - left
-                        val boxHeight = bottom - top
-
-                        // Adjust coordinates to maintain aspect ratio and stay within bounds
-                        if (left < 0) {
-                            left = 0f
-                            right = left + boxWidth
-                        }
-                        if (right > vw) {
-                            right = vw.toFloat()
-                            left = right - boxWidth
-                        }
-                        if (top < 0) {
-                            top = 0f
-                            bottom = top + boxHeight
-                        }
-                        if (bottom > vh) {
-                            bottom = vh.toFloat()
-                            top = bottom - boxHeight
-                        }
-
-                        // Flip horizontally for front camera (DETECT task)
-                        if (isFrontCamera) {
-                            val flippedLeft = vw - right
-                            val flippedRight = vw - left
-                            left = flippedLeft
-                            right = flippedRight
-                        }
-
-                        Log.d(TAG, "Drawing box for ${box.cls}: L=$left, T=$top, R=$right, B=$bottom, conf=${box.conf}")
-
-                        paint.color = newColor
-                        paint.style = Paint.Style.STROKE
-                        paint.strokeWidth = BOX_LINE_WIDTH
-                        canvas.drawRoundRect(
-                            left, top, right, bottom,
-                            BOX_CORNER_RADIUS, BOX_CORNER_RADIUS,
-                            paint
-                        )
-
-                        // Label text
-                        val labelText = "${box.cls} ${"%.1f".format(box.conf * 100)}%"
-                        paint.textSize = 40f
-                        val fm = paint.fontMetrics
-                        val textWidth = paint.measureText(labelText)
-                        val textHeight = fm.bottom - fm.top
-                        val pad = 8f
-
-                        // Label background height is (text height + 2*padding)
-                        val labelBoxHeight = textHeight + 2 * pad
-                        // Place label on top of the box's upper edge
-                        var labelBottom = top
-                        var labelTop = labelBottom - labelBoxHeight
-
-                        // Ensure label stays within bounds
-                        if (labelTop < 0) {
-                            labelTop = top
-                            labelBottom = labelTop + labelBoxHeight
-                        }
-
-                        // Rectangle for label background
-                        val labelLeft = left
-                        val labelRight = left + textWidth + 2 * pad
-                        val bgRect = RectF(labelLeft, labelTop, labelRight, labelBottom)
-
-                        // Draw background
-                        paint.style = Paint.Style.FILL
-                        paint.color = newColor
-                        canvas.drawRoundRect(bgRect, BOX_CORNER_RADIUS, BOX_CORNER_RADIUS, paint)
-
-                        // Center text vertically within the rectangle
-                        paint.color = Color.WHITE
-                        // Center position = (bgRect.top + bgRect.bottom)/2
-                        val centerY = (bgRect.top + bgRect.bottom) / 2
-                        // Baseline = centerY - (fm.descent + fm.ascent)/2
-                        val baseline = centerY - (fm.descent + fm.ascent) / 2
-                        canvas.drawText(labelText, bgRect.left + pad, baseline, paint)
-                    }
+                // Adjust coordinates to maintain aspect ratio and stay within bounds
+                if (left < 0) {
+                    left = 0f
+                    right = left + boxWidth
                 }
-                // ----------------------------------------
-                // SEGMENT
-                // ----------------------------------------
-                YOLOTask.SEGMENT -> {
-                    // Bounding boxes & labels
-                    for (box in result.boxes) {
-                        val alpha = (box.conf * 255).toInt().coerceIn(0, 255)
-                        val baseColor = ultralyticsColors[box.index % ultralyticsColors.size]
-                        val newColor = Color.argb(
-                            alpha,
-                            Color.red(baseColor),
-                            Color.green(baseColor),
-                            Color.blue(baseColor)
-                        )
-
-                        // Draw bounding box
-                        var left = box.xywh.left * scale + dx
-                        var top = box.xywh.top * scale + dy
-                        var right = box.xywh.right * scale + dx
-                        var bottom = box.xywh.bottom * scale + dy
-
-                        // For front camera POSE, apply horizontal flip
-                        if (isFrontCamera) {
-                            // Flip horizontally
-                            val flippedLeft = vw - right
-                            val flippedRight = vw - left
-                            left = flippedLeft
-                            right = flippedRight
-                        }
-
-                        paint.color = newColor
-                        paint.style = Paint.Style.STROKE
-                        paint.strokeWidth = BOX_LINE_WIDTH
-                        canvas.drawRoundRect(
-                            left, top, right, bottom,
-                            BOX_CORNER_RADIUS, BOX_CORNER_RADIUS,
-                            paint
-                        )
-
-                        // Label background + text (vertically centered)
-                        val labelText = "${box.cls} ${"%.1f".format(box.conf * 100)}%"
-                        paint.textSize = 40f
-                        val fm = paint.fontMetrics
-                        val textWidth = paint.measureText(labelText)
-                        val textHeight = fm.bottom - fm.top
-                        val pad = 8f
-
-                        val labelBoxHeight = textHeight + 2 * pad
-                        val labelBoxWidth = textWidth + 2 * pad
-
-                        // Calculate initial label position (above the box)
-                        var labelLeft = left
-                        var labelTop = top - labelBoxHeight
-                        var labelRight = labelLeft + labelBoxWidth
-                        var labelBottom = top
-
-                        // Check top boundary
-                        if (labelTop < 0) {
-                            // Place label inside the top of the box
-                            labelTop = top
-                            labelBottom = labelTop + labelBoxHeight
-                        }
-
-                        // Check left boundary
-                        if (labelLeft < 0) {
-                            labelLeft = 0f
-                            labelRight = labelBoxWidth
-                        }
-
-                        // Check right boundary
-                        if (labelRight > vw) {
-                            labelRight = vw.toFloat()
-                            labelLeft = labelRight - labelBoxWidth
-                            // If label is still too wide, align it with the right edge of the box
-                            if (labelLeft < 0) {
-                                labelLeft = maxOf(0f, right - labelBoxWidth)
-                            }
-                        }
-
-                        // Check bottom boundary (in case label was moved inside the box)
-                        if (labelBottom > vh) {
-                            labelBottom = vh.toFloat()
-                            labelTop = labelBottom - labelBoxHeight
-                        }
-
-                        val bgRect = RectF(labelLeft, labelTop, labelRight, labelBottom)
-
-                        paint.style = Paint.Style.FILL
-                        paint.color = newColor
-                        canvas.drawRoundRect(bgRect, BOX_CORNER_RADIUS, BOX_CORNER_RADIUS, paint)
-
-                        paint.color = Color.WHITE
-                        val centerY = (labelTop + labelBottom) / 2
-                        val baseline = centerY - (fm.descent + fm.ascent) / 2
-                        canvas.drawText(labelText, labelLeft + pad, baseline, paint)
-                    }
-
-                    // Segmentation mask
-                    result.masks?.combinedMask?.let { maskBitmap ->
-                        val src = Rect(0, 0, maskBitmap.width, maskBitmap.height)
-                        val dst = RectF(dx, dy, dx + scaledW, dy + scaledH)
-                        val maskPaint = Paint().apply { alpha = 128 }
-
-                        if (isFrontCamera) {
-                            // For front camera, flip the mask horizontally
-                            canvas.save()
-                            // Translate to center, flip horizontally, translate back
-                            canvas.translate(vw / 2f, 0f)
-                            canvas.scale(-1f, 1f)
-                            canvas.translate(-vw / 2f, 0f)
-                            canvas.drawBitmap(maskBitmap, src, dst, maskPaint)
-                            canvas.restore()
-                        } else {
-                            canvas.drawBitmap(maskBitmap, src, dst, maskPaint)
-                        }
-                    }
+                if (right > vw) {
+                    right = vw.toFloat()
+                    left = right - boxWidth
                 }
-                // ----------------------------------------
-                // CLASSIFY (display large in center)
-                // ----------------------------------------
-                YOLOTask.CLASSIFY -> {
-                    result.probs?.let { probs ->
-                        val alpha = (probs.top1Conf * 255).toInt().coerceIn(0, 255)
-                        // Select color based on top1Index
-                        val baseColor = ultralyticsColors[probs.top1Index % ultralyticsColors.size]
-                        val newColor = Color.argb(
-                            alpha,
-                            Color.red(baseColor),
-                            Color.green(baseColor),
-                            Color.blue(baseColor)
-                        )
-
-                        val labelText = "${probs.top1} ${"%.1f".format(probs.top1Conf * 100)}%"
-                        paint.textSize = 60f
-                        val textWidth = paint.measureText(labelText)
-                        val fm = paint.fontMetrics
-                        val textHeight = fm.bottom - fm.top
-                        val pad = 16f
-
-                        // Screen center
-                        val centerX = vw / 2f
-                        val centerY = vh / 2f
-
-                        val bgLeft = centerX - (textWidth / 2) - pad
-                        val bgTop = centerY - (textHeight / 2) - pad
-                        val bgRight = centerX + (textWidth / 2) + pad
-                        val bgBottom = centerY + (textHeight / 2) + pad
-
-                        paint.color = newColor
-                        paint.style = Paint.Style.FILL
-                        val bgRect = RectF(bgLeft, bgTop, bgRight, bgBottom)
-                        canvas.drawRoundRect(bgRect, 20f, 20f, paint)
-
-                        paint.color = Color.WHITE
-                        val baseline = centerY - (fm.descent + fm.ascent) / 2
-                        canvas.drawText(labelText, centerX - (textWidth / 2), baseline, paint)
-                    }
+                if (top < 0) {
+                    top = 0f
+                    bottom = top + boxHeight
                 }
-                // ----------------------------------------
-                // POSE
-                // ----------------------------------------
-                YOLOTask.POSE -> {
-                    // Bounding boxes
-                    for (box in result.boxes) {
-                        val alpha = (box.conf * 255).toInt().coerceIn(0, 255)
-                        val baseColor = ultralyticsColors[box.index % ultralyticsColors.size]
-                        val newColor = Color.argb(
-                            alpha,
-                            Color.red(baseColor),
-                            Color.green(baseColor),
-                            Color.blue(baseColor)
-                        )
-
-                        var left = box.xywh.left * scale + dx
-                        var top = box.xywh.top * scale + dy
-                        var right = box.xywh.right * scale + dx
-                        var bottom = box.xywh.bottom * scale + dy
-
-                        // For front camera POSE, apply horizontal flip
-                        if (isFrontCamera) {
-                            // Flip horizontally
-                            val flippedLeft = vw - right
-                            val flippedRight = vw - left
-                            left = flippedLeft
-                            right = flippedRight
-                        }
-
-                        paint.color = newColor
-                        paint.style = Paint.Style.STROKE
-                        paint.strokeWidth = BOX_LINE_WIDTH
-                        canvas.drawRoundRect(
-                            left, top, right, bottom,
-                            BOX_CORNER_RADIUS, BOX_CORNER_RADIUS,
-                            paint
-                        )
-
-                        // Add label
-                        val labelText = "${box.cls} ${"%.1f".format(box.conf * 100)}%"
-                        paint.textSize = 40f
-                        val fm = paint.fontMetrics
-                        val textWidth = paint.measureText(labelText)
-                        val textHeight = fm.bottom - fm.top
-                        val pad = 8f
-
-                        val labelBoxHeight = textHeight + 2 * pad
-                        val labelBoxWidth = textWidth + 2 * pad
-
-                        // Calculate initial label position (above the box)
-                        var labelLeft = left
-                        var labelTop = top - labelBoxHeight
-                        var labelRight = labelLeft + labelBoxWidth
-                        var labelBottom = top
-
-                        // Check top boundary
-                        if (labelTop < 0) {
-                            // Place label inside the top of the box
-                            labelTop = top
-                            labelBottom = labelTop + labelBoxHeight
-                        }
-
-                        // Check left boundary
-                        if (labelLeft < 0) {
-                            labelLeft = 0f
-                            labelRight = labelBoxWidth
-                        }
-
-                        // Check right boundary
-                        if (labelRight > vw) {
-                            labelRight = vw.toFloat()
-                            labelLeft = labelRight - labelBoxWidth
-                            // If label is still too wide, align it with the right edge of the box
-                            if (labelLeft < 0) {
-                                labelLeft = maxOf(0f, right - labelBoxWidth)
-                            }
-                        }
-
-                        // Check bottom boundary
-                        if (labelBottom > vh) {
-                            labelBottom = vh.toFloat()
-                            labelTop = labelBottom - labelBoxHeight
-                        }
-
-                        val bgRect = RectF(labelLeft, labelTop, labelRight, labelBottom)
-
-                        // Draw label background
-                        paint.style = Paint.Style.FILL
-                        paint.color = newColor
-                        canvas.drawRoundRect(bgRect, BOX_CORNER_RADIUS, BOX_CORNER_RADIUS, paint)
-
-                        // Draw label text
-                        paint.color = Color.WHITE
-                        val centerY = (labelTop + labelBottom) / 2
-                        val baseline = centerY - (fm.descent + fm.ascent) / 2
-                        canvas.drawText(labelText, labelLeft + pad, baseline, paint)
-                    }
-
-                    // Keypoints & skeleton
-                    for (person in result.keypointsList) {
-                        val points = arrayOfNulls<PointF>(person.xyn.size)
-                        for (i in person.xyn.indices) {
-                            val kp = person.xyn[i]
-                            val conf = person.conf[i]
-                            if (conf > 0.25f) {
-                                val pxCam = kp.first * iw
-                                val pyCam = kp.second * ih
-                                var px = pxCam * scale + dx
-                                var py = pyCam * scale + dy
-
-                                // For front camera POSE, apply horizontal flip
-                                if (isFrontCamera) {
-                                    px = vw - px  // Flip horizontally
-                                }
-
-                                val colorIdx = if (i < kptColorIndices.size) kptColorIndices[i] else 0
-                                val rgbArray = posePalette[colorIdx % posePalette.size]
-                                paint.color = Color.argb(
-                                    255,
-                                    rgbArray[0].toInt().coerceIn(0, 255),
-                                    rgbArray[1].toInt().coerceIn(0, 255),
-                                    rgbArray[2].toInt().coerceIn(0, 255)
-                                )
-                                paint.style = Paint.Style.FILL
-                                canvas.drawCircle(px, py, 8f, paint)
-
-                                points[i] = PointF(px, py)
-                            }
-                        }
-
-                        // Skeleton connection
-                        paint.style = Paint.Style.STROKE
-                        paint.strokeWidth = KEYPOINT_LINE_WIDTH
-                        for ((idx, bone) in skeleton.withIndex()) {
-                            val i1 = bone[0] - 1  // 1-indexed to 0-indexed
-                            val i2 = bone[1] - 1
-                            val p1 = points.getOrNull(i1)
-                            val p2 = points.getOrNull(i2)
-                            if (p1 != null && p2 != null) {
-                                val limbColorIdx = if (idx < limbColorIndices.size) limbColorIndices[idx] else 0
-                                val rgbArray = posePalette[limbColorIdx % posePalette.size]
-                                paint.color = Color.argb(
-                                    255,
-                                    rgbArray[0].toInt().coerceIn(0, 255),
-                                    rgbArray[1].toInt().coerceIn(0, 255),
-                                    rgbArray[2].toInt().coerceIn(0, 255)
-                                )
-                                canvas.drawLine(p1.x, p1.y, p2.x, p2.y, paint)
-                            }
-                        }
-                    }
+                if (bottom > vh) {
+                    bottom = vh.toFloat()
+                    top = bottom - boxHeight
                 }
-                // ----------------------------------------
-                // OBB
-                // ----------------------------------------
-                YOLOTask.OBB -> {
-                    for (obbRes in result.obb) {
-                        val alpha = (obbRes.confidence * 255).toInt().coerceIn(0, 255)
-                        val baseColor = ultralyticsColors[obbRes.index % ultralyticsColors.size]
-                        val newColor = Color.argb(
-                            alpha,
-                            Color.red(baseColor),
-                            Color.green(baseColor),
-                            Color.blue(baseColor)
-                        )
 
-                        paint.color = newColor
-                        paint.style = Paint.Style.STROKE
-                        paint.strokeWidth = BOX_LINE_WIDTH
-
-                        // Draw rotated rectangle (polygon) using path
-                        val polygon = obbRes.box.toPolygon().map { pt ->
-                            var x = pt.x * scaledW + dx
-                            val y = pt.y * scaledH + dy
-
-                            // Flip horizontally for front camera
-                            if (isFrontCamera) {
-                                x = vw - x
-                            }
-
-                            PointF(x, y)
-                        }
-                        if (polygon.size >= 4) {
-                            val path = Path().apply {
-                                moveTo(polygon[0].x, polygon[0].y)
-                                for (p in polygon.drop(1)) {
-                                    lineTo(p.x, p.y)
-                                }
-                                close()
-                            }
-                            canvas.drawPath(path, paint)
-
-                            // Label text
-                            val labelText = "${obbRes.cls} ${"%.1f".format(obbRes.confidence * 100)}%"
-                            paint.textSize = 40f
-                            paint.typeface = Typeface.create(Typeface.SANS_SERIF, Typeface.BOLD)
-
-                            val fm = paint.fontMetrics
-                            val textWidth = paint.measureText(labelText)
-                            val textHeight = fm.bottom - fm.top
-                            val padding = 10f
-                            val cornerRadius = 8f
-
-                            // Find bounding box of the OBB polygon
-                            val minX = polygon.map { it.x }.minOrNull() ?: 0f
-                            val maxX = polygon.map { it.x }.maxOrNull() ?: 0f
-                            val minY = polygon.map { it.y }.minOrNull() ?: 0f
-                            val maxY = polygon.map { it.y }.maxOrNull() ?: 0f
-
-                            val labelBoxHeight = textHeight + 2 * padding
-                            val labelBoxWidth = textWidth + 2 * padding
-
-                            // Calculate initial label position (above the OBB)
-                            var labelLeft = minX
-                            var labelTop = minY - labelBoxHeight
-                            var labelRight = labelLeft + labelBoxWidth
-                            var labelBottom = minY
-
-                            // Check top boundary
-                            if (labelTop < 0) {
-                                // Place label inside the top of the OBB
-                                labelTop = minY
-                                labelBottom = labelTop + labelBoxHeight
-                            }
-
-                            // Check left boundary
-                            if (labelLeft < 0) {
-                                labelLeft = 0f
-                                labelRight = labelBoxWidth
-                            }
-
-                            // Check right boundary
-                            if (labelRight > vw) {
-                                labelRight = vw.toFloat()
-                                labelLeft = labelRight - labelBoxWidth
-                                // If label is still too wide, align it with the OBB's right edge
-                                if (labelLeft < 0) {
-                                    labelLeft = maxOf(0f, maxX - labelBoxWidth)
-                                }
-                            }
-
-                            // Check bottom boundary
-                            if (labelBottom > vh) {
-                                labelBottom = vh.toFloat()
-                                labelTop = labelBottom - labelBoxHeight
-                            }
-
-                            val bgRect = RectF(labelLeft, labelTop, labelRight, labelBottom)
-                            paint.style = Paint.Style.FILL
-                            paint.color = newColor
-                            canvas.drawRoundRect(bgRect, cornerRadius, cornerRadius, paint)
-
-                            // Center text vertically
-                            paint.color = Color.WHITE
-                            val centerY = (labelTop + labelBottom) / 2
-                            val baseline = centerY - (fm.descent + fm.ascent) / 2
-                            val textX = labelLeft + padding
-                            canvas.drawText(labelText, textX, baseline, paint)
-                        }
-                    }
+                // Flip horizontally for front camera (DETECT task)
+                if (isFrontCamera) {
+                    val flippedLeft = vw - right
+                    val flippedRight = vw - left
+                    left = flippedLeft
+                    right = flippedRight
                 }
+
+                Log.d(TAG, "Drawing box for ${box.cls}: L=$left, T=$top, R=$right, B=$bottom, conf=${box.conf}")
+
+                paint.color = newColor
+                paint.style = Paint.Style.STROKE
+                paint.strokeWidth = BOX_LINE_WIDTH
+                canvas.drawRoundRect(
+                    left, top, right, bottom,
+                    BOX_CORNER_RADIUS, BOX_CORNER_RADIUS,
+                    paint
+                )
+
+                // Label text
+                val labelText = "${box.cls} ${"%.1f".format(box.conf * 100)}%"
+                paint.textSize = 40f
+                val fm = paint.fontMetrics
+                val textWidth = paint.measureText(labelText)
+                val textHeight = fm.bottom - fm.top
+                val pad = 8f
+
+                // Label background height is (text height + 2*padding)
+                val labelBoxHeight = textHeight + 2 * pad
+                // Place label on top of the box's upper edge
+                var labelBottom = top
+                var labelTop = labelBottom - labelBoxHeight
+
+                // Ensure label stays within bounds
+                if (labelTop < 0) {
+                    labelTop = top
+                    labelBottom = labelTop + labelBoxHeight
+                }
+
+                // Rectangle for label background
+                val labelLeft = left
+                val labelRight = left + textWidth + 2 * pad
+                val bgRect = RectF(labelLeft, labelTop, labelRight, labelBottom)
+
+                // Draw background
+                paint.style = Paint.Style.FILL
+                paint.color = newColor
+                canvas.drawRoundRect(bgRect, BOX_CORNER_RADIUS, BOX_CORNER_RADIUS, paint)
+
+                // Center text vertically within the rectangle
+                paint.color = Color.WHITE
+                // Center position = (bgRect.top + bgRect.bottom)/2
+                val centerY = (bgRect.top + bgRect.bottom) / 2
+                // Baseline = centerY - (fm.descent + fm.ascent)/2
+                val baseline = centerY - (fm.descent + fm.ascent) / 2
+                canvas.drawText(labelText, bgRect.left + pad, baseline, paint)
             }
         }
 
