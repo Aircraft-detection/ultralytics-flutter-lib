@@ -8,8 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:ultralytics_yolo/utils/logger.dart';
 import 'package:ultralytics_yolo/yolo_result.dart';
-import 'package:ultralytics_yolo/yolo_task.dart';
-import 'package:ultralytics_yolo/yolo_performance_metrics.dart';
 
 /// Controller for interacting with a [YOLOView] widget.
 ///
