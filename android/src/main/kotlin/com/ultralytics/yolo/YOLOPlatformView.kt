@@ -18,7 +18,6 @@ class YOLOPlatformView(
     private val context: Context,
     private val viewId: Int,
     private val streamHandler: EventChannel.StreamHandler,
-    private val methodChannel: MethodChannel?,
     private val factory: YOLOPlatformViewFactory // Added factory reference
 ) : PlatformView, MethodChannel.MethodCallHandler {
 
@@ -31,9 +30,6 @@ class YOLOPlatformView(
     init {
         // Parse model path and task from creation params
         var modelPath = "yolov8n_pretrained.tflite"
-
-        // Set up the method channel handler
-        methodChannel?.setMethodCallHandler(this)
         
         // Set up streaming callback to forward data to Flutter via event channel
         yoloView.setStreamCallback { streamData ->
@@ -102,12 +98,7 @@ class YOLOPlatformView(
                         
                         // Use the safe send method
                         val sent = customHandler.safelySend(streamData)
-                        if (sent) {
-                        } else {
-                            Log.w(TAG, "Failed to send stream data via CustomStreamHandler")
-                            // Notify Flutter to recreate the channel
-                            methodChannel?.invokeMethod("recreateEventChannel", null)
-                        }
+ 
                     } else {
                         // Use reflection to access the sink property regardless of exact type
                         Log.d(TAG, "Attempting to access sink via reflection")
@@ -122,9 +113,6 @@ class YOLOPlatformView(
                             sink.success(streamData)
                         } else {
                             Log.w(TAG, "Event sink is NOT available via reflection, skipping data")
-                            // Try alternative approach - recreate the event channel
-                            Log.d(TAG, "Requesting Flutter to recreate event channel")
-                            methodChannel?.invokeMethod("recreateEventChannel", null)
                         }
                     }
                 } catch (e: Exception) {
@@ -173,11 +161,7 @@ class YOLOPlatformView(
             // Stop camera and inference before disposing
             Log.d(TAG, "Calling yoloView.stop() to stop camera and inference")
             yoloView.stop()
-
-            // Clean up method channel
-            Log.d(TAG, "Clearing method channel handler")
-            methodChannel?.setMethodCallHandler(null)
-
+            
             // Notify the factory that this view is disposed
             Log.d(TAG, "Notifying factory of disposal")
             factory.onPlatformViewDisposed(viewId)

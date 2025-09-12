@@ -190,15 +190,12 @@ class YOLOPlatformViewFactory(
         Log.d(TAG, "Resolved viewUniqueId for channel naming: $viewUniqueId")
         
         // Create event channel for detection results
-        val resultChannelName = "com.ultralytics.yolo/detectionResults_$viewUniqueId"
-        val controlChannelName = "com.ultralytics.yolo/controlChannel_$viewUniqueId"
+        val resultChannelName = "com.ultralytics.yolo/detectionResults"
         
-        Log.d(TAG, "Final channel names - Result: $resultChannelName, Control: $controlChannelName")
+        Log.d(TAG, "Final channel names - Result: $resultChannelName")
         
         // Event channel for streaming detection results
         val eventChannel = EventChannel(messenger, resultChannelName)
-        // Method channel for controlling the view
-        val methodChannel = MethodChannel(messenger, controlChannelName)
         
         // Create stream handler for detection results
         val eventHandler = CustomStreamHandler(viewId)
@@ -213,7 +210,6 @@ class YOLOPlatformViewFactory(
             effectiveContext,
             viewId,
             eventHandler, // Pass the entire StreamHandler now
-            methodChannel,
             this // Pass the factory itself for disposal callback
         )
         activeViews[viewId] = platformView
