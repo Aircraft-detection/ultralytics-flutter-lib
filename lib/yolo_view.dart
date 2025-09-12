@@ -9,114 +9,8 @@ import 'package:flutter/services.dart';
 import 'package:ultralytics_yolo/utils/logger.dart';
 import 'package:ultralytics_yolo/yolo_result.dart';
 
-/// Controller for interacting with a [YOLOView] widget.
-///
-/// This controller provides methods to adjust detection thresholds
-/// and camera settings for real-time object detection. It manages
-/// the communication with the native platform views.
-///
-/// Example:
-/// ```dart
-/// class MyDetectorScreen extends StatefulWidget {
-///   @override
-///   State<MyDetectorScreen> createState() => _MyDetectorScreenState();
-/// }
-///
-/// class _MyDetectorScreenState extends State<MyDetectorScreen> {
-///   final controller = YOLOViewController();
-///
-///   @override
-///   Widget build(BuildContext context) {
-///     return Column(
-///       children: [
-///         Expanded(
-///           child: YOLOView(
-///             modelPath: 'assets/yolov8n.mlmodel',
-///             task: YOLOTask.detect,
-///             controller: controller,
-///             onResult: (results) {
-///               print('Detected ${results.length} objects');
-///             },
-///           ),
-///         ),
-///         ElevatedButton(
-///           onPressed: () => controller.switchCamera(),
-///           child: Text('Switch Camera'),
-///         ),
-///       ],
-///     );
-///   }
-/// }
-/// ```
-class YOLOViewController {
-  MethodChannel? _methodChannel;
-  int? _viewId;
-
-  double _confidenceThreshold = 0.5;
-  double _iouThreshold = 0.45;
-  int _numItemsThreshold = 30;
-
-  /// The current confidence threshold for detections.
-  ///
-  /// Only detections with confidence scores above this threshold
-  /// will be returned. Default is 0.5 (50%).
-  double get confidenceThreshold => _confidenceThreshold;
-
-  /// The current Intersection over Union (IoU) threshold.
-  ///
-  /// Used for non-maximum suppression to filter overlapping
-  /// detections. Default is 0.45.
-  double get iouThreshold => _iouThreshold;
-
-  /// The maximum number of items to detect per frame.
-  ///
-  /// Limits the number of detections returned to improve
-  /// performance. Default is 30.
-  int get numItemsThreshold => _numItemsThreshold;
-
-  /// Whether the controller has been initialized with a platform view.
-  ///
-  /// Returns true if the controller is connected to a native view and
-  /// can receive method calls.
-  bool get isInitialized => _methodChannel != null && _viewId != null;
-
-  @visibleForTesting
-  void init(MethodChannel methodChannel, int viewId) =>
-      _init(methodChannel, viewId);
-
-  void _init(MethodChannel methodChannel, int viewId) {
-    _methodChannel = methodChannel;
-    _viewId = viewId;
-  }
-}
 
 /// A Flutter widget that displays a real-time camera preview with YOLO object detection.
-///
-/// This widget creates a platform view that runs YOLO inference on camera frames
-/// and provides detection results through callbacks. It supports various YOLO tasks
-/// including object detection, segmentation, classification, pose estimation, and
-/// oriented bounding box detection.
-///
-/// Example:
-/// ```dart
-/// YOLOView(
-///   modelPath: 'assets/models/yolov8n.mlmodel',
-///   task: YOLOTask.detect,
-///   onResult: (List<YOLOResult> results) {
-///     // Handle detection results
-///     for (var result in results) {
-///       print('Detected ${result.className} with ${result.confidence}');
-///     }
-///   },
-///   onPerformanceMetrics: (Map<String, double> metrics) {
-///     print('FPS: ${metrics['fps']}');
-///   },
-/// )
-/// ```
-///
-/// The widget requires camera permissions to be granted before use.
-/// On iOS, add NSCameraUsageDescription to Info.plist.
-/// On Android, add CAMERA permission to AndroidManifest.xml.
 class YOLOView extends StatefulWidget {
   /// Path to the YOLO model file.
   ///
@@ -125,12 +19,6 @@ class YOLOView extends StatefulWidget {
   /// - iOS: .mlmodel (Core ML)
   /// - Android: .tflite (TensorFlow Lite)
   final String modelPath;
-
-  /// Optional controller for managing detection settings.
-  ///
-  /// If not provided, a default controller will be created internally.
-  /// Use a controller when you need to adjust thresholds or switch cameras.
-  final YOLOViewController? controller;
 
   /// Callback invoked when new detection results are available.
   ///
@@ -148,7 +36,6 @@ class YOLOView extends StatefulWidget {
   const YOLOView({
     super.key,
     required this.modelPath,
-    this.controller,
     this.onResult,
   });
 
@@ -164,9 +51,7 @@ class YOLOViewState extends State<YOLOView> {
   late EventChannel _resultEventChannel;
   StreamSubscription<dynamic>? _resultSubscription;
   late MethodChannel _methodChannel;
-
-  late YOLOViewController _effectiveController;
-
+  
   final String _viewId = UniqueKey().toString();
   int? _platformViewId;
 
@@ -185,30 +70,14 @@ class YOLOViewState extends State<YOLOView> {
     final controlChannelName = 'com.ultralytics.yolo/controlChannel_$_viewId';
     _methodChannel = MethodChannel(controlChannelName);
 
-    _setupController();
-
     if (widget.onResult != null) {
       _subscribeToResults();
     }
   }
 
-  void _setupController() {
-    if (widget.controller != null) {
-      _effectiveController = widget.controller!;
-    } else {
-      _effectiveController = YOLOViewController();
-    }
-    // Don't initialize here since we don't have the platform view ID yet
-    // It will be initialized in _onPlatformViewCreated
-  }
-
   @override
   void didUpdateWidget(YOLOView oldWidget) {
     super.didUpdateWidget(oldWidget);
-
-    if (oldWidget.controller != widget.controller) {
-      _setupController();
-    }
 
     if (oldWidget.onResult != widget.onResult) {
       if (widget.onResult == null) {
@@ -268,19 +137,7 @@ class YOLOViewState extends State<YOLOView> {
     logInfo('YOLOView.dispose() completed - calling super.dispose()');
     super.dispose();
   }
-
-  @visibleForTesting
-  void subscribeToResults() => _subscribeToResults();
-
-  @visibleForTesting
-  StreamSubscription<dynamic>? get resultSubscription => _resultSubscription;
-
-  @visibleForTesting
-  MethodChannel get methodChannel => _methodChannel;
-
-  @visibleForTesting
-  YOLOViewController get effectiveController => _effectiveController;
-
+  
   @visibleForTesting
   Future<dynamic> handleMethodCall(MethodCall call) async {
     switch (call.method) {
@@ -525,13 +382,7 @@ class YOLOViewState extends State<YOLOView> {
       );
       _subscribeToResults();
     }
-
-    logInfo('YoloView: Initializing controller with platform view ID: $id');
-    _effectiveController._init(
-      _methodChannel,
-      id,
-    ); // Re-init controller with the now valid method channel
-
+    
     _methodChannel.setMethodCallHandler(handleMethodCall);
   }
 }

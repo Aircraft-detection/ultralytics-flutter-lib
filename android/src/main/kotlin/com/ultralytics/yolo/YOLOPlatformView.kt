@@ -17,7 +17,6 @@ import io.flutter.plugin.platform.PlatformView
 class YOLOPlatformView(
     private val context: Context,
     private val viewId: Int,
-    creationParams: Map<String?, Any?>?,
     private val streamHandler: EventChannel.StreamHandler,
     private val methodChannel: MethodChannel?,
     private val factory: YOLOPlatformViewFactory // Added factory reference
@@ -30,10 +29,8 @@ class YOLOPlatformView(
     private var initialized = false
     
     init {
-        Log.d(TAG, "YOLOPlatformView[$viewId init]: Initialized with creationParams: $creationParams.")
-
         // Parse model path and task from creation params
-        var modelPath = creationParams?.get("modelPath") as? String ?: "yolo11n"
+        var modelPath = "yolov8n_pretrained.tflite"
 
         // Set up the method channel handler
         methodChannel?.setMethodCallHandler(this)
@@ -81,11 +78,6 @@ class YOLOPlatformView(
             
             // Load model with the specified path and task
             yoloView.setModel(modelPath)
-            
-            // Setup zoom callback
-            yoloView.onZoomChanged = { zoomLevel ->
-                methodChannel?.invokeMethod("onZoomChanged", zoomLevel.toDouble())
-            }
             
         } catch (e: Exception) {
             Log.e(TAG, "Error initializing YOLOPlatformView", e)

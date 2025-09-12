@@ -212,7 +212,6 @@ class YOLOPlatformViewFactory(
         val platformView = YOLOPlatformView(
             effectiveContext,
             viewId,
-            creationParams,
             eventHandler, // Pass the entire StreamHandler now
             methodChannel,
             this // Pass the factory itself for disposal callback
