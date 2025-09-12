@@ -41,21 +41,9 @@ class YOLOPlatformView(
 
         // Parse model path and task from creation params
         var modelPath = creationParams?.get("modelPath") as? String ?: "yolo11n"
-        val taskString = creationParams?.get("task") as? String ?: "detect"
-        // These will use defaults if not in creationParams, which is expected
-        // as Dart side sets them via method channel after view creation.
-        val confidenceParam = creationParams?.get("confidenceThreshold") as? Double ?: 0.5
-        val iouParam = creationParams?.get("iouThreshold") as? Double ?: 0.45
 
         // Set up the method channel handler
         methodChannel?.setMethodCallHandler(this)
-
-        // Set initial thresholds on YOLOView instance from creationParams or defaults.
-        // YOLOView.setModel will use these when creating the predictor.
-        Log.d(TAG, "Setting initial thresholds on YOLOView: conf=$confidenceParam, iou=$iouParam")
-        yoloView.setConfidenceThreshold(confidenceParam)
-        yoloView.setIouThreshold(iouParam)
-        // numItemsThreshold defaults within YOLOView.kt
         
         // Configure YOLOView streaming functionality
         setupYOLOViewStreaming(creationParams)
@@ -117,91 +105,6 @@ class YOLOPlatformView(
             Log.d(TAG, "Received method call: ${call.method} with arguments: ${call.arguments}")
             
             when (call.method) {
-                "setThreshold" -> {
-                    val threshold = call.argument<Double>("threshold") ?: 0.5
-                    Log.d(TAG, "Setting confidence threshold to $threshold")
-                    yoloView.setConfidenceThreshold(threshold)
-                    result.success(null)
-                }
-                "setConfidenceThreshold" -> {
-                    val threshold = call.argument<Double>("threshold") ?: 0.5
-                    Log.d(TAG, "Setting confidence threshold to $threshold")
-                    yoloView.setConfidenceThreshold(threshold)
-                    result.success(null)
-                }
-                // Support both "setIoUThreshold" (from Dart) and "setIouThreshold" (internal method)
-                "setIoUThreshold", "setIouThreshold" -> {
-                    val threshold = call.argument<Double>("threshold") ?: 0.45
-                    Log.d(TAG, "Setting IoU threshold to $threshold")
-                    yoloView.setIouThreshold(threshold)
-                    result.success(null)
-                }
-                "setNumItemsThreshold" -> {
-                    val numItems = call.argument<Int>("numItems") ?: 30
-                    Log.d(TAG, "Setting numItems threshold to $numItems")
-                    yoloView.setNumItemsThreshold(numItems)
-                    result.success(null)
-                }
-                "setThresholds" -> {
-                    val confidenceThreshold = call.argument<Double>("confidenceThreshold")
-                    val iouThreshold = call.argument<Double>("iouThreshold")
-                    val numItemsThreshold = call.argument<Int>("numItemsThreshold")
-                    
-                    if (confidenceThreshold != null) {
-                        Log.d(TAG, "Setting confidence threshold to $confidenceThreshold")
-                        yoloView.setConfidenceThreshold(confidenceThreshold)
-                    }
-                    if (iouThreshold != null) {
-                        Log.d(TAG, "Setting IoU threshold to $iouThreshold")
-                        yoloView.setIouThreshold(iouThreshold)
-                    }
-                    if (numItemsThreshold != null) {
-                        Log.d(TAG, "Setting numItems threshold to $numItemsThreshold")
-                        yoloView.setNumItemsThreshold(numItemsThreshold)
-                    }
-                    
-                    result.success(null)
-                }
-                "switchCamera" -> {
-                    Log.d(TAG, "Switching camera")
-                    yoloView.switchCamera()
-                    result.success(null)
-                }
-                "setShowUIControls" -> {
-                    // Android doesn't have UI controls like iOS, so we just acknowledge the call
-                    Log.d(TAG, "setShowUIControls called, but not applicable for Android")
-                    result.success(null)
-                }
-                "setZoomLevel" -> {
-                    val zoomLevel = call.argument<Double>("zoomLevel")
-                    if (zoomLevel != null) {
-                        Log.d(TAG, "Setting zoom level to $zoomLevel")
-                        yoloView.setZoomLevel(zoomLevel.toFloat())
-                        result.success(null)
-                    } else {
-                        result.error("invalid_args", "Zoom level is required", null)
-                    }
-                }
-                "setStreamingConfig" -> {
-                    Log.d(TAG, "Received setStreamingConfig call")
-                    val streamConfig = YOLOStreamConfig(
-                        includeDetections = call.argument<Boolean>("includeDetections") ?: true,
-                        includeClassifications = call.argument<Boolean>("includeClassifications") ?: true,
-                        includeProcessingTimeMs = call.argument<Boolean>("includeProcessingTimeMs") ?: true,
-                        includeFps = call.argument<Boolean>("includeFps") ?: true,
-                        includeMasks = call.argument<Boolean>("includeMasks") ?: false,
-                        includePoses = call.argument<Boolean>("includePoses") ?: false,
-                        includeOBB = call.argument<Boolean>("includeOBB") ?: false,
-                        includeOriginalImage = call.argument<Boolean>("includeOriginalImage") ?: false,
-                        maxFPS = call.argument<Int>("maxFPS"),
-                        throttleIntervalMs = call.argument<Int>("throttleInterval"),
-                        inferenceFrequency = call.argument<Int>("inferenceFrequency"),
-                        skipFrames = call.argument<Int>("skipFrames")
-                    )
-                    yoloView.setStreamConfig(streamConfig)
-                    Log.d(TAG, "YOLOView streaming config updated: $streamConfig")
-                    result.success(null)
-                }
                 "stop" -> {
                     Log.d(TAG, "Received manual stop call from Flutter")
                     try {
@@ -232,17 +135,6 @@ class YOLOPlatformView(
                             Log.e(TAG, "Failed to switch model")
                             result.error("MODEL_NOT_FOUND", "Failed to load model: $modelPath", null)
                         }
-                    }
-                }
-                "captureFrame" -> {
-                    Log.d(TAG, "Received captureFrame call")
-                    val imageData = yoloView.captureFrame()
-                    if (imageData != null) {
-                        Log.d(TAG, "Frame captured successfully: ${imageData.size} bytes")
-                        result.success(imageData)
-                    } else {
-                        Log.e(TAG, "Failed to capture frame")
-                        result.error("capture_failed", "Failed to capture frame from camera", null)
                     }
                 }
                 "listen" -> {

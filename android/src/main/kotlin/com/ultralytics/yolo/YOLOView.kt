@@ -304,49 +304,10 @@ class YOLOView @JvmOverloads constructor(
         Log.d(TAG, "YoloView init: forced TextureView usage for camera preview + overlay on top.")
     }
 
-    // region threshold setters
-
-    fun setConfidenceThreshold(conf: Double) {
-        confidenceThreshold = conf
-        (predictor as? ObjectDetector)?.setConfidenceThreshold(conf)
-    }
-
-    fun setIouThreshold(iou: Double) {
-        iouThreshold = iou
-        (predictor as? ObjectDetector)?.setIouThreshold(iou)
-    }
-
-    fun setNumItemsThreshold(n: Int) {
-        numItemsThreshold = n
-        (predictor as? ObjectDetector)?.setNumItemsThreshold(n)
-    }
-
-    fun setZoomLevel(zoomLevel: Float) {
-        camera?.let { cam: Camera ->
-            // Clamp zoom level between min and max
-            val clampedZoomRatio =
-                zoomLevel.coerceIn(minZoomRatio, cam.cameraInfo.zoomState.value?.maxZoomRatio ?: maxZoomRatio)
-
-            cam.cameraControl.setZoomRatio(clampedZoomRatio)
-            currentZoomRatio = clampedZoomRatio
-
-            // Notify zoom change
-            onZoomChanged?.invoke(currentZoomRatio)
-        }
-    }
-
-    // endregion
-
-    // region Model / Task
-
     fun setModel(modelPath: String, callback: ((Boolean) -> Unit)? = null) {
         Executors.newSingleThreadExecutor().execute {
             try {
-                val newPredictor = ObjectDetector(context, modelPath, loadLabels(modelPath), useGpu = true).apply {
-                    setConfidenceThreshold(confidenceThreshold)
-                    setIouThreshold(iouThreshold)
-                    setNumItemsThreshold(numItemsThreshold)
-                }
+                val newPredictor = ObjectDetector(context, modelPath, loadLabels(modelPath), useGpu = true)
                 
                 post {
                     this.predictor = newPredictor
@@ -1053,81 +1014,7 @@ class YOLOView @JvmOverloads constructor(
 
         return map
     }
-
-    // endregion
-
-    /**
-     * Capture current camera frame with detection overlays
-     * Returns the captured image as a ByteArray (JPEG format)
-     */
-    fun captureFrame(): ByteArray? {
-        try {
-            // Create bitmap to hold the captured frame
-            val width = width
-            val height = height
-            if (width <= 0 || height <= 0) {
-                Log.e(TAG, "Invalid view dimensions for capture: ${width}x${height}")
-                return null
-            }
-
-            // Create bitmap and canvas
-            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(bitmap)
-
-            // Method 1: Try to get bitmap from PreviewView directly
-            var cameraFrameCaptured = false
-            previewView.bitmap?.let { cameraBitmap ->
-                Log.d(TAG, "Got camera bitmap from PreviewView: ${cameraBitmap.width}x${cameraBitmap.height}")
-                // Draw the camera bitmap scaled to fit
-                val matrix = Matrix()
-                val scaleX = width.toFloat() / cameraBitmap.width
-                val scaleY = height.toFloat() / cameraBitmap.height
-                matrix.setScale(scaleX, scaleY)
-                canvas.drawBitmap(cameraBitmap, matrix, null)
-                cameraFrameCaptured = true
-            }
-
-            if (!cameraFrameCaptured) {
-                // Method 2: Use hardware acceleration to capture the view
-                Log.w(TAG, "PreviewView.bitmap is null, trying hardware capture")
-
-                // Enable drawing cache temporarily
-                isDrawingCacheEnabled = true
-                buildDrawingCache()
-                drawingCache?.let { cache ->
-                    canvas.drawBitmap(cache, 0f, 0f, null)
-                    cameraFrameCaptured = true
-                }
-                isDrawingCacheEnabled = false
-
-                if (!cameraFrameCaptured) {
-                    // Method 3: Last resort - draw the entire view hierarchy
-                    Log.w(TAG, "Drawing cache failed, using draw method")
-                    // Draw PreviewView first
-                    previewView.draw(canvas)
-                }
-            }
-
-            // Always draw the overlay on top
-            overlayView.draw(canvas)
-
-            // Convert bitmap to JPEG byte array
-            val outputStream = java.io.ByteArrayOutputStream()
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
-            val imageData = outputStream.toByteArray()
-
-            // Clean up
-            outputStream.close()
-            bitmap.recycle()
-
-            Log.d(TAG, "Frame captured successfully: ${imageData.size} bytes, camera captured: $cameraFrameCaptured")
-            return imageData
-        } catch (e: Exception) {
-            Log.e(TAG, "Error capturing frame", e)
-            return null
-        }
-    }
-
+    
     /**
      * Stop camera and inference (can be restarted later)
      */

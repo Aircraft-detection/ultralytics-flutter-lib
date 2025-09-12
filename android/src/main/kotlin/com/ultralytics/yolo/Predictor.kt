@@ -17,12 +17,6 @@ interface Predictor {
      * @return YOLOResult containing detection results
      */
     fun predict(bitmap: Bitmap, origWidth: Int, origHeight: Int, rotateForCamera: Boolean = false, isLandscape: Boolean = false): YOLOResult
-    
-    abstract fun setIouThreshold(iou: Double)
-    abstract fun setConfidenceThreshold(conf: Double)
-    abstract fun setNumItemsThreshold(progress: Int)
-    abstract fun getConfidenceThreshold(): Double
-    abstract fun getIouThreshold(): Double
 
     var labels: List<String>
     var isUpdating: Boolean
@@ -54,24 +48,5 @@ abstract class BasePredictor : Predictor {
         t2 = 0.05 * dt + 0.95 * t2
         t4 = 0.05 * ((now - t3) / 1e9) + 0.95 * t4
         t3 = now
-    }
-    override fun setIouThreshold(iou: Double) {
-        IOU_THRESHOLD = iou.toFloat()
-    }
-
-    override fun setConfidenceThreshold(conf: Double) {
-        CONFIDENCE_THRESHOLD = conf.toFloat()
-    }
-
-    override fun setNumItemsThreshold(progress: Int) {
-
-    }
-    
-    override fun getConfidenceThreshold(): Double {
-        return CONFIDENCE_THRESHOLD.toDouble()
-    }
-    
-    override fun getIouThreshold(): Double {
-        return IOU_THRESHOLD.toDouble()
     }
 }

@@ -150,7 +150,6 @@ class YOLOPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler
         try {
           val args = call.arguments as? Map<*, *>
           var modelPath = args?.get("modelPath") as? String ?: "yolo11n"
-          val taskString = args?.get("task") as? String ?: "detect"
           val instanceId = args?.get("instanceId") as? String ?: "default"
           val classifierOptionsMap = args?.get("classifierOptions") as? Map<String, Any>
           
@@ -189,89 +188,6 @@ class YOLOPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler
         }
       }
 
-      "predictSingleImage" -> {
-        try {
-          val args = call.arguments as? Map<*, *>
-          val imageData = args?.get("image") as? ByteArray
-          val confidenceThreshold = args?.get("confidenceThreshold") as? Double
-          val iouThreshold = args?.get("iouThreshold") as? Double
-          val instanceId = args?.get("instanceId") as? String ?: "default"
-
-          if (imageData == null) {
-            result.error("bad_args", "No image data", null)
-            return
-          }
-          
-          // Convert byte array to bitmap
-          val bitmap = BitmapFactory.decodeByteArray(imageData, 0, imageData.size)
-          if (bitmap == null) {
-            result.error("image_error", "Failed to decode image", null)
-            return
-          }
-          
-          // Run inference using instance manager
-          val yoloResult = YOLOInstanceManager.shared.predict(
-            instanceId = instanceId,
-            bitmap = bitmap,
-            confidenceThreshold = confidenceThreshold?.toFloat(),
-            iouThreshold = iouThreshold?.toFloat()
-          )
-          
-          if (yoloResult == null) {
-            result.error("MODEL_NOT_LOADED", "Model has not been loaded. Call loadModel() first.", null)
-            return
-          }
-          
-          // Create response
-          val response = HashMap<String, Any>()
-          
-          // Get image dimensions for normalization
-          val imageWidth = bitmap.width.toFloat()
-          val imageHeight = bitmap.height.toFloat()
-          
-          // Convert boxes to map for Flutter
-          response["boxes"] = yoloResult.boxes.map { box ->
-            mapOf(
-              "x1" to box.xywh.left,
-              "y1" to box.xywh.top,
-              "x2" to box.xywh.right,
-              "y2" to box.xywh.bottom,
-              "x1_norm" to box.xywh.left / imageWidth,
-              "y1_norm" to box.xywh.top / imageHeight,
-              "x2_norm" to box.xywh.right / imageWidth,
-              "y2_norm" to box.xywh.bottom / imageHeight,
-              "class" to box.cls,
-              "className" to box.cls, // Add className for compatibility with YOLOResult
-              "confidence" to box.conf
-            )
-          }
-          
-          // Include image size in response
-          response["imageSize"] = mapOf(
-            "width" to imageWidth.toInt(),
-            "height" to imageHeight.toInt()
-          )
-          
-          // Get instance to check task type
-          val yolo = YOLOInstanceManager.shared.getInstance(instanceId)
-          
-          // Include annotated image in response
-          yoloResult.annotatedImage?.let { annotated ->
-            val stream = ByteArrayOutputStream()
-            annotated.compress(Bitmap.CompressFormat.JPEG, 90, stream)
-            response["annotatedImage"] = stream.toByteArray()
-          }
-          
-          // Include inference speed
-          response["speed"] = yoloResult.speed
-          
-          result.success(response)
-        } catch (e: Exception) {
-          Log.e(TAG, "Error during prediction", e)
-          result.error("prediction_error", "Error during prediction: ${e.message}", null)
-        }
-      }
-
       "checkModelExists" -> {
         try {
           val args = call.arguments as? Map<*, *>
@@ -297,41 +213,6 @@ class YOLOPlugin : FlutterPlugin, ActivityAware, MethodChannel.MethodCallHandler
           result.success(paths)
         } catch (e: Exception) {
           result.error("path_error", "Failed to get storage paths: ${e.message}", null)
-        }
-      }
-      
-      "setModel" -> {
-        try {
-          val args = call.arguments as? Map<*, *>
-          val viewId = args?.get("viewId") as? Int
-          val modelPath = args?.get("modelPath") as? String
-          val taskString = args?.get("task") as? String
-          
-          if (viewId == null || modelPath == null || taskString == null) {
-            result.error("bad_args", "Missing required arguments for setModel", null)
-            return
-          }
-          
-          // Get the YoloView instance from the factory
-          val yoloView = viewFactory.activeViews[viewId]
-          if (yoloView != null) {
-            // Resolve the model path
-            val resolvedPath = resolveModelPath(modelPath)
-            
-            // Call setModel on the YoloView
-            yoloView.setModel(resolvedPath) { success ->
-              if (success) {
-                result.success(null)
-              } else {
-                result.error("MODEL_NOT_FOUND", "Failed to load model: $modelPath", null)
-              }
-            }
-          } else {
-            result.error("VIEW_NOT_FOUND", "YoloView with id $viewId not found", null)
-          }
-        } catch (e: Exception) {
-          Log.e(TAG, "Error setting model", e)
-          result.error("set_model_error", "Error setting model: ${e.message}", null)
         }
       }
       

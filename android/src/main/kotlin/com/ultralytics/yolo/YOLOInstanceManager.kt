@@ -101,35 +101,6 @@ class YOLOInstanceManager {
     }
     
     /**
-     * Runs inference on a specific instance
-     */
-    fun predict(
-        instanceId: String,
-        bitmap: Bitmap,
-        confidenceThreshold: Float? = null,
-        iouThreshold: Float? = null
-    ): YOLOResult? {
-        val yolo = instances[instanceId] ?: return null
-        
-        // Store original thresholds
-        val originalConfThreshold = yolo.getConfidenceThreshold()
-        val originalIouThreshold = yolo.getIouThreshold()
-        
-        // Apply custom thresholds if provided
-        confidenceThreshold?.let { yolo.setConfidenceThreshold(it) }
-        iouThreshold?.let { yolo.setIouThreshold(it) }
-        
-        // Run prediction
-        val result = yolo.predict(bitmap)
-        
-        // Restore original thresholds
-        yolo.setConfidenceThreshold(originalConfThreshold)
-        yolo.setIouThreshold(originalIouThreshold)
-        
-        return result
-    }
-    
-    /**
      * Removes an instance
      */
     fun removeInstance(instanceId: String) {
