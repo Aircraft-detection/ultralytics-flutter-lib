@@ -53,7 +53,7 @@ class YOLO(
         }
     }
 
-    private val predictor: Predictor by lazy {
+    private val predictor: ObjectDetector by lazy {
         val options = createCustomOptions()
         ObjectDetector(context, modelPath, labels, useGpu, options)
     }

@@ -20,12 +20,10 @@ import androidx.camera.view.PreviewView
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.DefaultLifecycleObserver
-import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleOwner
 import com.google.common.util.concurrent.ListenableFuture
 import java.util.concurrent.Executors
 import kotlin.math.max
-import kotlin.math.min
 import android.widget.TextView
 import android.view.Gravity
 import java.util.concurrent.ExecutorService
@@ -141,7 +139,6 @@ class YOLOView @JvmOverloads constructor(
     private var inferenceCallback: ((YOLOResult) -> Unit)? = null
 
     // Streaming functionality
-    private var streamConfig: YOLOStreamConfig? = null
     private var streamCallback: ((Map<String, Any>) -> Unit)? = null
 
     // Frame counter for streaming
@@ -160,19 +157,6 @@ class YOLOView @JvmOverloads constructor(
     /** Set the callback */
     fun setOnInferenceCallback(callback: (YOLOResult) -> Unit) {
         this.inferenceCallback = callback
-    }
-
-    /** Set streaming configuration */
-    fun setStreamConfig(config: YOLOStreamConfig?) {
-        Log.d(TAG, "🔄 Setting new streaming config")
-        Log.d(TAG, "📋 Previous config: $streamConfig")
-        this.streamConfig = config
-        setupThrottlingFromConfig()
-        Log.d(TAG, "✅ New streaming config set: $config")
-        Log.d(
-            TAG,
-            "🎯 Key settings - includeMasks: ${config?.includeMasks}, includeProcessingTimeMs: ${config?.includeProcessingTimeMs}, inferenceFrequency: ${config?.inferenceFrequency}"
-        )
     }
 
     /** Set streaming callback */
@@ -200,7 +184,7 @@ class YOLOView @JvmOverloads constructor(
     private val overlayView: OverlayView = OverlayView(context)
 
     private var inferenceResult: YOLOResult? = null
-    private var predictor: Predictor? = null
+    private var detector: ObjectDetector? = null
     private var modelName: String = "Model"
 
     // Camera config
@@ -310,7 +294,7 @@ class YOLOView @JvmOverloads constructor(
                 val newPredictor = ObjectDetector(context, modelPath, loadLabels(modelPath), useGpu = true)
                 
                 post {
-                    this.predictor = newPredictor
+                    this.detector = newPredictor
                     this.modelName = modelPath.substringAfterLast("/")
                     modelLoadCallback?.invoke(true)
                     callback?.invoke(true)
@@ -320,7 +304,7 @@ class YOLOView @JvmOverloads constructor(
                 Log.w(TAG, "Failed to load model: $modelPath. Camera will run without inference.", e)
                 post {
                     // Set predictor to null to ensure camera-only mode
-                    this.predictor = null
+                    this.detector = null
                     this.modelName = "No Model"
                     modelLoadCallback?.invoke(false)
                     callback?.invoke(false)
@@ -522,7 +506,7 @@ class YOLOView @JvmOverloads constructor(
             return
         }
 
-        predictor?.let { p ->
+        detector?.let { p ->
             // Check if we should run inference on this frame
             if (!shouldRunInference()) {
                 Log.d(TAG, "Skipping inference due to frequency control")
@@ -535,12 +519,6 @@ class YOLOView @JvmOverloads constructor(
                 val orientation = context.resources.configuration.orientation
                 val isLandscape = orientation == Configuration.ORIENTATION_LANDSCAPE
 
-                // Check if using front camera
-                val isFrontCamera = lensFacing == CameraSelector.LENS_FACING_FRONT
-
-                // Set camera facing information in predictor
-                (p as? BasePredictor)?.isFrontCamera = isFrontCamera
-
                 // For camera feed, we typically rotate the bitmap
                 // In landscape mode, we don't rotate, so width/height should match actual bitmap dimensions
                 val result = if (isLandscape) {
@@ -549,20 +527,11 @@ class YOLOView @JvmOverloads constructor(
                     // In portrait mode, keep the original behavior (h, w)
                     p.predict(bitmap, h, w, rotateForCamera = true, isLandscape = isLandscape)
                 }
-
-                // Apply originalImage if streaming config requires it
-                val resultWithOriginalImage = if (streamConfig?.includeOriginalImage == true) {
-                    result.copy(originalImage = bitmap)  // Reuse bitmap from ImageProxy conversion
-                } else {
-                    result
-                }
-
-                inferenceResult = resultWithOriginalImage
-
-                // Log
-
+                
+                inferenceResult = result
+                
                 // Callback
-                inferenceCallback?.invoke(resultWithOriginalImage)
+                inferenceCallback?.invoke(result)
 
                 // Streaming callback (with output throttling)
                 streamCallback?.let { callback ->
@@ -571,7 +540,7 @@ class YOLOView @JvmOverloads constructor(
 
                         // Convert to stream data and send
                         // modified: add width, height, and orientation
-                        val streamData = convertResultToStreamData(resultWithOriginalImage, w, h, isLandscape)
+                        val streamData = convertResultToStreamData(result, w, h, isLandscape)
                         // Add timestamp and frame info
                         val enhancedStreamData = HashMap<String, Any>(streamData)
                         enhancedStreamData["timestamp"] = System.currentTimeMillis()
@@ -768,116 +737,8 @@ class YOLOView @JvmOverloads constructor(
                 canvas.drawText(labelText, bgRect.left + pad, baseline, paint)
             }
         }
-
-        override fun onTouchEvent(event: MotionEvent?): Boolean {
-            // Pass through all touch events
-            return false
-        }
     }
-
-    // Scale listener for pinch-to-zoom
-    private inner class ScaleListener : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-        override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-            // Show zoom label when pinch starts
-            zoomLabel.visibility = View.VISIBLE
-            return true
-        }
-
-        override fun onScale(detector: ScaleGestureDetector): Boolean {
-            val scaleFactor = detector.scaleFactor
-            val newZoomRatio = currentZoomRatio * scaleFactor
-
-            // Clamp zoom within min/max bounds
-            val clampedZoom = newZoomRatio.coerceIn(minZoomRatio, maxZoomRatio)
-
-            // Apply zoom to camera
-            camera?.cameraControl?.setZoomRatio(clampedZoom)
-            currentZoomRatio = clampedZoom
-
-            // Update zoom label
-            zoomLabel.text = String.format("%.1fx", currentZoomRatio)
-
-            return true
-        }
-
-        override fun onScaleEnd(detector: ScaleGestureDetector) {
-            // Hide zoom label after 2 seconds
-            zoomLabel.postDelayed({
-                zoomLabel.visibility = View.GONE
-            }, 2000)
-        }
-    }
-
-    // Touch event handling for pinch-to-zoom
-    override fun onTouchEvent(event: MotionEvent): Boolean {
-        scaleGestureDetector.onTouchEvent(event)
-        return true
-    }
-
-    // region Streaming functionality
-
-    /**
-     * Setup throttling parameters from streaming configuration
-     */
-    private fun setupThrottlingFromConfig() {
-        streamConfig?.let { config ->
-            // Setup maxFPS throttling (for result output)
-            config.maxFPS?.let { maxFPS ->
-                if (maxFPS > 0) {
-                    targetFrameInterval = (1_000_000_000L / maxFPS) // Convert to nanoseconds
-                    Log.d(
-                        TAG,
-                        "maxFPS throttling enabled - target FPS: $maxFPS, interval: ${targetFrameInterval!! / 1_000_000}ms"
-                    )
-                }
-            } ?: run {
-                targetFrameInterval = null
-                Log.d(TAG, "maxFPS throttling disabled")
-            }
-
-            // Setup throttleInterval (for result output)
-            config.throttleIntervalMs?.let { throttleMs ->
-                if (throttleMs > 0) {
-                    throttleInterval = throttleMs * 1_000_000L // Convert ms to nanoseconds
-                    Log.d(TAG, "throttleInterval enabled - interval: ${throttleMs}ms")
-                }
-            } ?: run {
-                throttleInterval = null
-                Log.d(TAG, "throttleInterval disabled")
-            }
-
-            // Setup inference frequency control
-            config.inferenceFrequency?.let { inferenceFreq ->
-                if (inferenceFreq > 0) {
-                    inferenceFrameInterval = (1_000_000_000L / inferenceFreq) // Convert to nanoseconds
-                    Log.d(
-                        TAG,
-                        "Inference frequency control enabled - target inference FPS: $inferenceFreq, interval: ${inferenceFrameInterval!! / 1_000_000}ms"
-                    )
-                }
-            } ?: run {
-                inferenceFrameInterval = null
-                Log.d(TAG, "Inference frequency control disabled")
-            }
-
-            // Setup frame skipping
-            config.skipFrames?.let { skipFrames ->
-                if (skipFrames > 0) {
-                    targetSkipFrames = skipFrames
-                    frameSkipCount = 0 // Reset counter
-                    Log.d(TAG, "Frame skipping enabled - skip $skipFrames frames between inferences")
-                }
-            } ?: run {
-                targetSkipFrames = 0
-                frameSkipCount = 0
-                Log.d(TAG, "Frame skipping disabled")
-            }
-
-            // Initialize timing
-            lastInferenceTime = System.nanoTime()
-        }
-    }
-
+    
     /**
      * Check if we should run inference on this frame based on inference frequency control
      */
@@ -943,74 +804,52 @@ class YOLOView @JvmOverloads constructor(
      */
     private fun convertResultToStreamData(result: YOLOResult, w: Int, h: Int, isLandscape: Boolean): Map<String, Any> {
         val map = HashMap<String, Any>()
-        val config = streamConfig ?: return emptyMap()
+        
+        val detections = ArrayList<Map<String, Any>>()
 
+        // Convert detection boxes - CRITICAL: use detectionIndex, not class index
+        for ((detectionIndex, box) in result.boxes.withIndex()) {
+            val detection = HashMap<String, Any>()
 
-        // Convert detection results (if enabled)
-        if (config.includeDetections) {
-            val detections = ArrayList<Map<String, Any>>()
+            // modified: add width, height, and orientation
+            detection["w"] = w
+            detection["h"] = h
+            detection["isLandscape"] = isLandscape
 
-            // Convert detection boxes - CRITICAL: use detectionIndex, not class index
-            for ((detectionIndex, box) in result.boxes.withIndex()) {
-                val detection = HashMap<String, Any>()
+            detection["classIndex"] = box.index
+            detection["className"] = box.cls
+            detection["confidence"] = box.conf.toDouble()
 
-                // modified: add width, height, and orientation
-                detection["w"] = w
-                detection["h"] = h
-                detection["isLandscape"] = isLandscape
+            // Bounding box in original coordinates
+            val boundingBox = HashMap<String, Any>()
+            boundingBox["left"] = box.xywh.left.toDouble()
+            boundingBox["top"] = box.xywh.top.toDouble()
+            boundingBox["right"] = box.xywh.right.toDouble()
+            boundingBox["bottom"] = box.xywh.bottom.toDouble()
+            detection["boundingBox"] = boundingBox
 
-                detection["classIndex"] = box.index
-                detection["className"] = box.cls
-                detection["confidence"] = box.conf.toDouble()
+            // Normalized bounding box (0-1)
+            val normalizedBox = HashMap<String, Any>()
+            normalizedBox["left"] = box.xywhn.left.toDouble()
+            normalizedBox["top"] = box.xywhn.top.toDouble()
+            normalizedBox["right"] = box.xywhn.right.toDouble()
+            normalizedBox["bottom"] = box.xywhn.bottom.toDouble()
+            detection["normalizedBox"] = normalizedBox
 
-                // Bounding box in original coordinates
-                val boundingBox = HashMap<String, Any>()
-                boundingBox["left"] = box.xywh.left.toDouble()
-                boundingBox["top"] = box.xywh.top.toDouble()
-                boundingBox["right"] = box.xywh.right.toDouble()
-                boundingBox["bottom"] = box.xywh.bottom.toDouble()
-                detection["boundingBox"] = boundingBox
-
-                // Normalized bounding box (0-1)
-                val normalizedBox = HashMap<String, Any>()
-                normalizedBox["left"] = box.xywhn.left.toDouble()
-                normalizedBox["top"] = box.xywhn.top.toDouble()
-                normalizedBox["right"] = box.xywhn.right.toDouble()
-                normalizedBox["bottom"] = box.xywhn.bottom.toDouble()
-                detection["normalizedBox"] = normalizedBox
-
-                detections.add(detection)
-            }
-
-            map["detections"] = detections
-            Log.d(
-                TAG,
-                "✅ Total detections in stream: ${detections.size} (boxes: ${result.boxes.size})"
-            )
+            detections.add(detection)
         }
 
-        // Add performance metrics (if enabled)
-        if (config.includeProcessingTimeMs) {
-            val processingTimeMs = result.speed.toDouble()
-            map["processingTimeMs"] = processingTimeMs
-        } else {
-            Log.d(TAG, "⚠️ Skipping processingTimeMs (includeProcessingTimeMs=${config.includeProcessingTimeMs})")
-        }
+        map["detections"] = detections
+        Log.d(
+            TAG,
+            "✅ Total detections in stream: ${detections.size} (boxes: ${result.boxes.size})"
+        )
 
-        if (config.includeFps) {
-            map["fps"] = result.fps?.toDouble() ?: 0.0
-        }
+        // Add performance metrics
+        val processingTimeMs = result.speed.toDouble()
+        map["processingTimeMs"] = processingTimeMs
 
-        // Add original image (if available and enabled)
-        if (config.includeOriginalImage) {
-            result.originalImage?.let { bitmap ->
-                val outputStream = java.io.ByteArrayOutputStream()
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
-                val imageData = outputStream.toByteArray()
-                map["originalImage"] = imageData
-                Log.d(TAG, "✅ Added original image data (${imageData.size} bytes)")
-            }
-        }
+        map["fps"] = result.fps?.toDouble() ?: 0.0
 
         return map
     }
@@ -1049,7 +888,7 @@ class YOLOView @JvmOverloads constructor(
 
             // 5) Null out camera and inference machinery
             camera = null
-            predictor = null
+            detector = null
             inferenceCallback = null
             streamCallback = null
             inferenceResult = null

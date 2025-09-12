@@ -45,8 +45,11 @@ class YOLOPlatformView(
         // Set up the method channel handler
         methodChannel?.setMethodCallHandler(this)
         
-        // Configure YOLOView streaming functionality
-        setupYOLOViewStreaming(creationParams)
+        // Set up streaming callback to forward data to Flutter via event channel
+        yoloView.setStreamCallback { streamData ->
+            // Forward streaming data from YOLOView to Flutter
+            sendStreamDataToFlutter(streamData)
+        }
 
         // Attempt to initialize camera as soon as the view is created.
         // YOLOView.initCamera() handles permissions and starts the camera preview.
@@ -155,56 +158,6 @@ class YOLOPlatformView(
         } catch (e: Exception) {
             Log.e(TAG, "Error handling method call: ${call.method}", e)
             result.error("method_call_error", "Error handling method call: ${e.message}", null)
-        }
-    }
-    
-    /**
-     * Configure YOLOView streaming functionality based on creation parameters
-     */
-    private fun setupYOLOViewStreaming(creationParams: Map<String?, Any?>?) {
-        // Parse streaming configuration from creationParams
-        val streamingConfigParam = creationParams?.get("streamingConfig") as? Map<String, Any>
-        
-        val streamConfig = if (streamingConfigParam != null) {
-            Log.d(TAG, "Creating YOLOStreamConfig from creation params: $streamingConfigParam")
-            
-            // Convert creation params to YOLOStreamConfig
-            YOLOStreamConfig(
-                includeDetections = streamingConfigParam["includeDetections"] as? Boolean ?: true,
-                includeClassifications = streamingConfigParam["includeClassifications"] as? Boolean ?: true,
-                includeProcessingTimeMs = streamingConfigParam["includeProcessingTimeMs"] as? Boolean ?: true,
-                includeFps = streamingConfigParam["includeFps"] as? Boolean ?: true,
-                includeMasks = streamingConfigParam["includeMasks"] as? Boolean ?: true,
-                includePoses = streamingConfigParam["includePoses"] as? Boolean ?: true,
-                includeOBB = streamingConfigParam["includeOBB"] as? Boolean ?: true,
-                includeOriginalImage = streamingConfigParam["includeOriginalImage"] as? Boolean ?: false,
-                maxFPS = when (val maxFPS = streamingConfigParam["maxFPS"]) {
-                    is Int -> maxFPS
-                    is Double -> maxFPS.toInt()
-                    is String -> maxFPS.toIntOrNull()
-                    else -> null
-                },
-                throttleIntervalMs = when (val throttleMs = streamingConfigParam["throttleIntervalMs"]) {
-                    is Int -> throttleMs
-                    is Double -> throttleMs.toInt()
-                    is String -> throttleMs.toIntOrNull()
-                    else -> null
-                }
-            )
-        } else {
-            // Use default minimal configuration for optimal performance
-            Log.d(TAG, "Using default streaming config")
-            YOLOStreamConfig.DEFAULT
-        }
-        
-        // Configure YOLOView with the stream config
-        yoloView.setStreamConfig(streamConfig)
-        Log.d(TAG, "YOLOView streaming configured: $streamConfig")
-        
-        // Set up streaming callback to forward data to Flutter via event channel
-        yoloView.setStreamCallback { streamData ->
-            // Forward streaming data from YOLOView to Flutter
-            sendStreamDataToFlutter(streamData)
         }
     }
     
