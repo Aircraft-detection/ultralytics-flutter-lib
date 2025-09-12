@@ -29,15 +29,8 @@ class YOLOPlatformView(
     // Initialization flag
     private var initialized = false
     
-    // Unique ID to send to Flutter
-    private val viewUniqueId: String
-    
     init {
-        val dartViewIdParam = creationParams?.get("viewId")
-        viewUniqueId = dartViewIdParam as? String ?: viewId.toString().also {
-            Log.w(TAG, "YOLOPlatformView[$viewId init]: Using platform int viewId '$it' as fallback for viewUniqueId because Dart 'viewId' was null or not a String.")
-        }
-        Log.d(TAG, "YOLOPlatformView[$viewId init]: Initialized with creationParams: $creationParams. Resolved viewUniqueId for channels: $viewUniqueId")
+        Log.d(TAG, "YOLOPlatformView[$viewId init]: Initialized with creationParams: $creationParams.")
 
         // Parse model path and task from creation params
         var modelPath = creationParams?.get("modelPath") as? String ?: "yolo11n"

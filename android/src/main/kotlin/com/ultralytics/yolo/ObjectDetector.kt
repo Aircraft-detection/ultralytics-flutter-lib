@@ -54,8 +54,6 @@ class ObjectDetector(
         "keyboard", "cell phone", "microwave", "oven", "toaster", "sink", "refrigerator", "book",
         "clock", "vase", "scissors", "teddy bear", "hair drier", "toothbrush"
     ),
-    private val useGpu: Boolean = true,
-    private val customOptions: Interpreter.Options? = null
 ) {
 
     var isUpdating: Boolean = false
@@ -82,17 +80,15 @@ class ObjectDetector(
         t4 = 0.05 * ((now - t3) / 1e9) + 0.95 * t4
         t3 = now
     }
-    
+
     // Inference output dimensions
     private var out1 = 0
     private var out2 = 0
 
     // Three image processors: camera portrait, camera landscape, and single images
     private lateinit var imageProcessorCameraPortrait: ImageProcessor
-    private lateinit var imageProcessorCameraPortraitFront: ImageProcessor
     private lateinit var imageProcessorCameraLandscape: ImageProcessor
-    private lateinit var imageProcessorSingleImage: ImageProcessor
-    
+
     // Reuse inference output array ([1][out1][out2])
     private lateinit var rawOutput: Array<Array<FloatArray>>
 
@@ -110,24 +106,6 @@ class ObjectDetector(
     // (3) ByteBuffer for TFLite input (1 * height * width * 3 * 4 bytes)
     private lateinit var inputBuffer: ByteBuffer
 
-    // Options for TensorFlow Lite Interpreter
-    private val interpreterOptions: Interpreter.Options = (customOptions ?: Interpreter.Options()).apply {
-        // If no custom options provided, use default threads
-        if (customOptions == null) {
-            setNumThreads(Runtime.getRuntime().availableProcessors())
-        }
-
-        // If customOptions is provided, only add GPU delegate if requested
-        if (useGpu) {
-            try {
-                addDelegate(GpuDelegate())
-                Log.d("ObjectDetector", "GPU delegate is used.")
-            } catch (e: Exception) {
-                Log.e("ObjectDetector", "GPU delegate error: ${e.message}")
-            }
-        }
-    }
-
     // ========== TFLite Interpreter ==========
     // Use protected var interpreter: Interpreter? = null from BasePredictor if available
     // Otherwise, keep it in this class as usual
@@ -140,8 +118,20 @@ class ObjectDetector(
             Log.e(TAG, "Failed to load model with path: $modelPath, error: ${e.message}")
             throw e
         }
+        
+        val interpreterOptions = Interpreter.Options().apply {
+            setNumThreads(Runtime.getRuntime().availableProcessors())
+
+            try {
+                addDelegate(GpuDelegate())
+                Log.d("ObjectDetector", "GPU delegate is used.")
+            } catch (e: Exception) {
+                Log.e("ObjectDetector", "GPU delegate error: ${e.message}")
+            }
+        }
 
         interpreter = Interpreter(modelBuffer, interpreterOptions)
+        
         // Call allocateTensors() once during initialization, not in the inference loop
         interpreter.allocateTensors()
         Log.d("TAG", "TFLite model loaded: $modelPath, tensors allocated")
@@ -172,34 +162,17 @@ class ObjectDetector(
         // Allocate inference output arrays
         rawOutput = Array(1) { Array(out1) { FloatArray(out2) } }
         predictions = Array(out2) { FloatArray(out1) }
-
-        // Initialize three image processors:
-
-        // 1. For camera feed in portrait mode - includes 270-degree rotation
+        
+        // For camera feed in portrait mode - includes 270-degree rotation
         imageProcessorCameraPortrait = ImageProcessor.Builder()
             .add(Rot90Op(3))  // 270-degree rotation (3 * 90 degrees) for back camera
             .add(ResizeOp(inputSize.height, inputSize.width, ResizeOp.ResizeMethod.BILINEAR))
             .add(NormalizeOp(INPUT_MEAN, INPUT_STANDARD_DEVIATION))
             .add(CastOp(INPUT_IMAGE_TYPE))
             .build()
-
-        // 2. For front camera in portrait mode - 90-degree rotation
-        imageProcessorCameraPortraitFront = ImageProcessor.Builder()
-            .add(Rot90Op(1))  // 90-degree rotation for front camera
-            .add(ResizeOp(inputSize.height, inputSize.width, ResizeOp.ResizeMethod.BILINEAR))
-            .add(NormalizeOp(INPUT_MEAN, INPUT_STANDARD_DEVIATION))
-            .add(CastOp(INPUT_IMAGE_TYPE))
-            .build()
-
-        // 3. For camera feed in landscape mode - no rotation needed
+        
+        // For camera feed in landscape mode - no rotation needed
         imageProcessorCameraLandscape = ImageProcessor.Builder()
-            .add(ResizeOp(inputSize.height, inputSize.width, ResizeOp.ResizeMethod.BILINEAR))
-            .add(NormalizeOp(INPUT_MEAN, INPUT_STANDARD_DEVIATION))
-            .add(CastOp(INPUT_IMAGE_TYPE))
-            .build()
-
-        // 4. For single images - no rotation needed
-        imageProcessorSingleImage = ImageProcessor.Builder()
             .add(ResizeOp(inputSize.height, inputSize.width, ResizeOp.ResizeMethod.BILINEAR))
             .add(NormalizeOp(INPUT_MEAN, INPUT_STANDARD_DEVIATION))
             .add(CastOp(INPUT_IMAGE_TYPE))
@@ -236,7 +209,6 @@ class ObjectDetector(
         bitmap: Bitmap,
         origWidth: Int,
         origHeight: Int,
-        rotateForCamera: Boolean,
         isLandscape: Boolean
     ): YOLOResult {
         val overallStartTime = System.nanoTime()
@@ -256,21 +228,10 @@ class ObjectDetector(
         // Clear inputBuffer before reuse to avoid memory leaks
         inputBuffer.clear()
 
-        val processedImage = if (rotateForCamera) {
-            // Use appropriate camera processor based on orientation
-            if (isLandscape) {
-                imageProcessorCameraLandscape.process(tensorImage)
-            } else {
-                // Use different rotation for front vs back camera
-                if (isFrontCamera) {
-                    imageProcessorCameraPortraitFront.process(tensorImage)
-                } else {
-                    imageProcessorCameraPortrait.process(tensorImage)
-                }
-            }
+        val processedImage = if (isLandscape) {
+            imageProcessorCameraLandscape.process(tensorImage)
         } else {
-            // Use single image processor (no rotation) for regular images
-            imageProcessorSingleImage.process(tensorImage)
+            imageProcessorCameraPortrait.process(tensorImage)
         }
 
         // Reuse our direct ByteBuffer instead of the processedImage.buffer
@@ -390,8 +351,5 @@ class ObjectDetector(
         private const val INPUT_MEAN = 0f
         private const val INPUT_STANDARD_DEVIATION = 255f
         private val INPUT_IMAGE_TYPE = DataType.FLOAT32
-        private val OUTPUT_IMAGE_TYPE = DataType.FLOAT32
-        private const val CONFIDENCE_THRESHOLD = 0.25F
-        private const val IOU_THRESHOLD = 0.4F
     }
 }

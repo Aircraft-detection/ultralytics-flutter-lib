@@ -45,94 +45,6 @@ class YOLOView @JvmOverloads constructor(
         private var previewUseCase: Preview? = null
 
         private const val TAG = "YOLOView"
-
-        // Line thickness and corner radius
-        private const val BOX_LINE_WIDTH = 8f
-        private const val BOX_CORNER_RADIUS = 12f
-        private const val KEYPOINT_LINE_WIDTH = 6f
-
-        // Colors derived from Ultralytics
-        private val ultralyticsColors = arrayOf(
-            Color.argb(153, 4, 42, 255),
-            Color.argb(153, 11, 219, 235),
-            Color.argb(153, 243, 243, 243),
-            Color.argb(153, 0, 223, 183),
-            Color.argb(153, 17, 31, 104),
-            Color.argb(153, 255, 111, 221),
-            Color.argb(153, 255, 68, 79),
-            Color.argb(153, 204, 237, 0),
-            Color.argb(153, 0, 243, 68),
-            Color.argb(153, 189, 0, 255),
-            Color.argb(153, 0, 180, 255),
-            Color.argb(153, 221, 0, 186),
-            Color.argb(153, 0, 255, 255),
-            Color.argb(153, 38, 192, 0),
-            Color.argb(153, 1, 255, 179),
-            Color.argb(153, 125, 36, 255),
-            Color.argb(153, 123, 0, 104),
-            Color.argb(153, 255, 27, 108),
-            Color.argb(153, 252, 109, 47),
-            Color.argb(153, 162, 255, 11)
-        )
-
-        // Pose
-        private val posePalette = arrayOf(
-            floatArrayOf(255f, 128f, 0f),
-            floatArrayOf(255f, 153f, 51f),
-            floatArrayOf(255f, 178f, 102f),
-            floatArrayOf(230f, 230f, 0f),
-            floatArrayOf(255f, 153f, 255f),
-            floatArrayOf(153f, 204f, 255f),
-            floatArrayOf(255f, 102f, 255f),
-            floatArrayOf(255f, 51f, 255f),
-            floatArrayOf(102f, 178f, 255f),
-            floatArrayOf(51f, 153f, 255f),
-            floatArrayOf(255f, 153f, 153f),
-            floatArrayOf(255f, 102f, 102f),
-            floatArrayOf(255f, 51f, 51f),
-            floatArrayOf(153f, 255f, 153f),
-            floatArrayOf(102f, 255f, 102f),
-            floatArrayOf(51f, 255f, 51f),
-            floatArrayOf(0f, 255f, 0f),
-            floatArrayOf(0f, 0f, 255f),
-            floatArrayOf(255f, 0f, 0f),
-            floatArrayOf(255f, 255f, 255f),
-        )
-
-        private val kptColorIndices = intArrayOf(
-            16, 16, 16, 16, 16,
-            9, 9, 9, 9, 9, 9,
-            0, 0, 0, 0, 0, 0
-        )
-
-        private val limbColorIndices = intArrayOf(
-            0, 0, 0, 0,
-            7, 7, 7,
-            9, 9, 9, 9, 9,
-            16, 16, 16, 16, 16, 16, 16
-        )
-
-        private val skeleton = arrayOf(
-            intArrayOf(16, 14),
-            intArrayOf(14, 12),
-            intArrayOf(17, 15),
-            intArrayOf(15, 13),
-            intArrayOf(12, 13),
-            intArrayOf(6, 12),
-            intArrayOf(7, 13),
-            intArrayOf(6, 7),
-            intArrayOf(6, 8),
-            intArrayOf(7, 9),
-            intArrayOf(8, 10),
-            intArrayOf(9, 11),
-            intArrayOf(2, 3),
-            intArrayOf(1, 2),
-            intArrayOf(1, 3),
-            intArrayOf(2, 4),
-            intArrayOf(3, 5),
-            intArrayOf(4, 6),
-            intArrayOf(5, 7)
-        )
     }
 
     // Callback to notify inference results externally
@@ -291,7 +203,7 @@ class YOLOView @JvmOverloads constructor(
     fun setModel(modelPath: String, callback: ((Boolean) -> Unit)? = null) {
         Executors.newSingleThreadExecutor().execute {
             try {
-                val newPredictor = ObjectDetector(context, modelPath, useGpu = true)
+                val newPredictor = ObjectDetector(context, modelPath)
                 
                 post {
                     this.detector = newPredictor
@@ -455,14 +367,10 @@ class YOLOView @JvmOverloads constructor(
         Log.d(TAG, "Lifecycle onStop")
         // Camera will be automatically stopped by CameraX when lifecycle stops
     }
-
-    // region onFrame (per frame inference)
-
+    
     private fun onFrame(imageProxy: ImageProxy) {
         val w = imageProxy.width
         val h = imageProxy.height
-        val orientation = context.resources.configuration.orientation
-        val isLandscapeDevice = orientation == Configuration.ORIENTATION_LANDSCAPE
 
         val bitmap = ImageUtils.toBitmap(imageProxy) ?: run {
             Log.e(TAG, "Failed to convert ImageProxy to Bitmap")
@@ -479,17 +387,15 @@ class YOLOView @JvmOverloads constructor(
             }
 
             try {
-                // Get device orientation
-                val orientation = context.resources.configuration.orientation
-                val isLandscape = orientation == Configuration.ORIENTATION_LANDSCAPE
+                val isLandscape = context.resources.configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
 
                 // For camera feed, we typically rotate the bitmap
                 // In landscape mode, we don't rotate, so width/height should match actual bitmap dimensions
                 val result = if (isLandscape) {
-                    p.predict(bitmap, w, h, rotateForCamera = true, isLandscape = isLandscape)
+                    p.predict(bitmap, w, h, isLandscape = isLandscape)
                 } else {
                     // In portrait mode, keep the original behavior (h, w)
-                    p.predict(bitmap, h, w, rotateForCamera = true, isLandscape = isLandscape)
+                    p.predict(bitmap, h, w, isLandscape = isLandscape)
                 }
                 
                 inferenceResult = result
@@ -557,23 +463,16 @@ class YOLOView @JvmOverloads constructor(
 
             val result = inferenceResult ?: return
 
-
             val iw = result.origShape.width.toFloat()
             val ih = result.origShape.height.toFloat()
 
             val vw = width.toFloat()
             val vh = height.toFloat()
-
-            // Get device orientation for debugging
-            val orientation = context.resources.configuration.orientation
-            val isLandscape = orientation == Configuration.ORIENTATION_LANDSCAPE
-
-
+            
             // Scale factor from camera image to view
             val scaleX = vw / iw
             val scaleY = vh / ih
             val scale = max(scaleX, scaleY)
-
 
             val scaledW = iw * scale
             val scaledH = ih * scale
@@ -581,28 +480,11 @@ class YOLOView @JvmOverloads constructor(
             val dx = (vw - scaledW) / 2f
             val dy = (vh - scaledH) / 2f
 
-            // Check if using front camera
-            val isFrontCamera = lensFacing == CameraSelector.LENS_FACING_FRONT
-            
             Log.d(TAG, "Drawing DETECT boxes: ${result.boxes.size}")
-
-            // Debug first box coordinates
-            if (result.boxes.isNotEmpty()) {
-                val firstBox = result.boxes[0]
-                Log.d(TAG, "=== First Box Debug ===")
-                Log.d(
-                    TAG,
-                    "Box normalized coords: (${firstBox.xywhn.left}, ${firstBox.xywhn.top}, ${firstBox.xywhn.right}, ${firstBox.xywhn.bottom})"
-                )
-                Log.d(
-                    TAG,
-                    "Box pixel coords: (${firstBox.xywh.left}, ${firstBox.xywh.top}, ${firstBox.xywh.right}, ${firstBox.xywh.bottom})"
-                )
-            }
 
             for (box in result.boxes) {
                 val alpha = (box.conf * 255).toInt().coerceIn(0, 255)
-                val baseColor = ultralyticsColors[box.index % ultralyticsColors.size]
+                val baseColor = Color.argb(153, 4, 42, 255)
                 val newColor = Color.argb(
                     alpha,
                     Color.red(baseColor),
@@ -639,22 +521,14 @@ class YOLOView @JvmOverloads constructor(
                     top = bottom - boxHeight
                 }
 
-                // Flip horizontally for front camera (DETECT task)
-                if (isFrontCamera) {
-                    val flippedLeft = vw - right
-                    val flippedRight = vw - left
-                    left = flippedLeft
-                    right = flippedRight
-                }
-
                 Log.d(TAG, "Drawing box for ${box.cls}: L=$left, T=$top, R=$right, B=$bottom, conf=${box.conf}")
-
+                
                 paint.color = newColor
                 paint.style = Paint.Style.STROKE
-                paint.strokeWidth = BOX_LINE_WIDTH
+                paint.strokeWidth = 8f
                 canvas.drawRoundRect(
                     left, top, right, bottom,
-                    BOX_CORNER_RADIUS, BOX_CORNER_RADIUS,
+                    12f, 12f,
                     paint
                 )
 
@@ -686,7 +560,7 @@ class YOLOView @JvmOverloads constructor(
                 // Draw background
                 paint.style = Paint.Style.FILL
                 paint.color = newColor
-                canvas.drawRoundRect(bgRect, BOX_CORNER_RADIUS, BOX_CORNER_RADIUS, paint)
+                canvas.drawRoundRect(bgRect, 12f, 12f, paint)
 
                 // Center text vertically within the rectangle
                 paint.color = Color.WHITE

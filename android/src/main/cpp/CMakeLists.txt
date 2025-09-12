@@ -2,9 +2,9 @@ cmake_minimum_required(VERSION 3.10.2)
 project("ultralytics")
 
 add_library(
-ultralytics           # ライブラリ名（後述の System.loadLibrary で指定）
+ultralytics  
 SHARED
-native-lib.cpp        # C++ ソースファイル
+native-lib.cpp
 )
 
 find_library(
