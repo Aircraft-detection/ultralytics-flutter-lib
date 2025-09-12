@@ -60,25 +60,6 @@ class YOLOResult {
   /// resolution-independent processing.
   final Rect normalizedBox;
 
-  /// The segmentation mask for instance segmentation tasks.
-  ///
-  /// Only available when using segmentation models (YOLOTask.segment).
-  /// Each inner list represents a row of mask values.
-  final List<List<double>>? mask;
-
-  /// The detected keypoints for pose estimation tasks.
-  ///
-  /// Only available when using pose models (YOLOTask.pose).
-  /// Common keypoints include body joints like shoulders, elbows, knees, etc.
-  final List<Point>? keypoints;
-
-  /// The confidence values for each detected keypoint.
-  ///
-  /// Only available when using pose models (YOLOTask.pose).
-  /// Each value corresponds to a keypoint in the [keypoints] list
-  /// and ranges from 0.0 to 1.0.
-  final List<double>? keypointConfidences;
-
   YOLOResult({
     // modified: add width, height, and landscape
     required this.w,
@@ -89,9 +70,6 @@ class YOLOResult {
     required this.confidence,
     required this.boundingBox,
     required this.normalizedBox,
-    this.mask,
-    this.keypoints,
-    this.keypointConfidences,
   });
 
   /// Creates a [YOLOResult] from a map representation.
@@ -175,9 +153,6 @@ class YOLOResult {
       confidence: confidence,
       boundingBox: boundingBox,
       normalizedBox: normalizedBox,
-      mask: mask,
-      keypoints: keypoints,
-      keypointConfidences: keypointConfidences,
     );
   }
 
@@ -209,20 +184,6 @@ class YOLOResult {
         'bottom': normalizedBox.bottom,
       },
     };
-
-    if (mask != null) {
-      map['mask'] = mask;
-    }
-
-    if (keypoints != null && keypointConfidences != null) {
-      final keypointsData = <double>[];
-      for (var i = 0; i < keypoints!.length; i++) {
-        keypointsData.add(keypoints![i].x);
-        keypointsData.add(keypoints![i].y);
-        keypointsData.add(keypointConfidences![i]);
-      }
-      map['keypoints'] = keypointsData;
-    }
 
     return map;
   }

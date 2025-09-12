@@ -10,15 +10,4 @@ enum YOLOTask {
   /// Object detection - identifies objects and their locations with bounding boxes
   detect,
 
-  /// Instance segmentation - provides pixel-level masks for detected objects
-  segment,
-
-  /// Image classification - categorizes the main subject of an image
-  classify,
-
-  /// Pose estimation - detects human body keypoints and poses
-  pose,
-
-  /// Oriented Bounding Box detection - detects rotated bounding boxes for objects
-  obb,
 }
